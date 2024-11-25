@@ -2,14 +2,6 @@ package model
 
 import "regexp"
 
-type Stats interface {
-	Id() string
-	SystemStats() SystemStats
-	EthStats() []EthStats
-	EncoderStats() []EncoderStats
-	DecoderStats() []DecoderStats
-}
-
 type SystemStats interface {
 	Ident() string
 	PtpSync() bool

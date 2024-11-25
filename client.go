@@ -77,8 +77,8 @@ func NewClient(ip string, opts ...clientOption) *client {
 	return c
 }
 
-type UpdateChan chan xlink.XLink
-type StatsChan chan xlink.Stats
+type UpdateChan chan XLink
+type StatsChan chan Stats
 
 // Connect attempts to connect to the system. It is blocking!
 // If you cancle the context, the connection is closed.
