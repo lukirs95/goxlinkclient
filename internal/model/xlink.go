@@ -2,7 +2,7 @@ package model
 
 type XLink interface {
 	Ident() string
-	GetName() string
+	GetName() (string, bool)
 	GetEncoders() []Encoder
 	GetDecoders() []Decoder
 	GetInterfaces() []Ethernet
@@ -19,8 +19,11 @@ func (xLink XLinkRaw) Ident() string {
 	return xLink.Id
 }
 
-func (xLink XLinkRaw) GetName() string {
-	return xLink.Data.Local.Name
+func (xLink XLinkRaw) GetName() (string, bool) {
+	if xLink.Data.Local.Name != "" {
+		return xLink.Data.Local.Name, true
+	}
+	return "", false
 }
 
 func (xlink XLinkRaw) GetEncoders() []Encoder {

@@ -4,7 +4,7 @@ import "github.com/lukirs95/goxlinkclient/internal/model"
 
 type XLink interface {
 	Ident() string
-	GetName() string
+	GetName() (string, bool)
 	GetEncoders() []model.Encoder
 	GetDecoders() []model.Decoder
 	GetInterfaces() []model.Ethernet
