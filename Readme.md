@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	xlinkclient "github.com/lukirs95/goxlink"
+	xlinkclient "github.com/lukirs95/goxlinkclient"
 )
 
 func main() {
