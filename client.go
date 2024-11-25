@@ -9,7 +9,7 @@ import (
 	"time"
 
 	jsonrpc "github.com/lukirs95/gojsonrpc"
-	xlink "github.com/lukirs95/goxlink/internal/model"
+	xlink "github.com/lukirs95/goxlinkclient/internal/model"
 )
 
 type clientOption func(c *client)
