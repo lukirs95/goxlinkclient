@@ -72,8 +72,8 @@ func NewClient(ip string, opts ...clientOption) *client {
 	}
 
 	authMessage.Password = c.password
-
 	c.jrpc.OnDisconnect = c.onDisconnect
+	c.jrpc.SetReadLimit(32768 << 2)
 	return c
 }
 

@@ -2,7 +2,7 @@ module github.com/lukirs95/goxlinkclient
 
 go 1.23.3
 
-require github.com/lukirs95/gojsonrpc v0.0.0-20241124172337-80b84c1209ab
+require github.com/lukirs95/gojsonrpc v0.0.0-20241125165611-fdf732123a4b
 
 require (
 	github.com/klauspost/compress v1.10.3 // indirect
