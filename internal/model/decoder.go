@@ -12,6 +12,7 @@ type Decoder interface {
 	IsRunning() (bool, bool)
 	HasSender() (bool, bool)
 	IsConnected() (bool, bool)
+	GetSender() (DecoderSender, bool)
 }
 
 type DecoderRaw struct {

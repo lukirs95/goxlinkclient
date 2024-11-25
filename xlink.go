@@ -1,11 +1,13 @@
 package xlinkclient
 
+import "github.com/lukirs95/goxlinkclient/internal/model"
+
 type XLink interface {
 	Ident() string
 	GetName() string
-	GetEncoders() []Encoder
-	GetDecoders() []Decoder
-	GetInterfaces() []Ethernet
+	GetEncoders() []model.Encoder
+	GetDecoders() []model.Decoder
+	GetInterfaces() []model.Ethernet
 }
 
 type Encoder interface {
@@ -17,19 +19,7 @@ type Encoder interface {
 	IsAudioEnabled() (bool, bool)
 	IsRunning() (bool, bool)
 	IsConnected() (bool, bool)
-	GetReceiver() (EncoderReceiver, bool)
-}
-
-type EncoderReceiver interface {
-	Ident() string
-	GetName() (string, bool)
-	PhyicalNumber() (int, bool)
-	IsVideoEnabled() (bool, bool)
-	IsAudioEnabled() (bool, bool)
-	HasVideoSignal() (bool, bool)
-	HasAudioSignal() (bool, bool)
-	IsRunning() (bool, bool)
-	IsConnected() (bool, bool)
+	GetReceiver() (model.EncoderReceiver, bool)
 }
 
 type Decoder interface {
@@ -42,18 +32,7 @@ type Decoder interface {
 	IsRunning() (bool, bool)
 	HasSender() (bool, bool)
 	IsConnected() (bool, bool)
-}
-
-type DecoderSender interface {
-	Ident() string
-	GetName() (string, bool)
-	PhyicalNumber() (int, bool)
-	IsVideoEnabled() (bool, bool)
-	IsAudioEnabled() (bool, bool)
-	HasVideoSignal() (bool, bool)
-	HasAudioSignal() (bool, bool)
-	IsRunning() (bool, bool)
-	IsConnected() (bool, bool)
+	GetSender() (model.DecoderSender, bool)
 }
 
 type Ethernet interface {
