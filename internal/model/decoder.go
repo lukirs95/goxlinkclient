@@ -9,6 +9,8 @@ type Decoder interface {
 	PhyicalNumber() (int, bool)
 	IsVideoEnabled() (bool, bool)
 	IsAudioEnabled() (bool, bool)
+	HasVideoSignal() (bool, bool)
+	HasAudioSignal() (bool, bool)
 	IsRunning() (bool, bool)
 	HasSender() (bool, bool)
 	IsConnected() (bool, bool)
@@ -16,9 +18,9 @@ type Decoder interface {
 }
 
 type DecoderRaw struct {
-	Id      string    `json:"id"`
-	Enabled *bool          `json:"enabled"`
-	Name    string         `json:"name"`
+	Id      string            `json:"id"`
+	Enabled *bool             `json:"enabled"`
+	Name    string            `json:"name"`
 	Values  *DecoderRawValues `json:"values"`
 	Sender  *DecoderRawSender `json:"sender"`
 }

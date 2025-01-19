@@ -36,14 +36,14 @@ func WithPassword(password string) clientOption {
 }
 
 type client struct {
-	logger Logger
+	logger         Logger
 	reconnectDelay time.Duration
-	ip string
-	password string
-	jrpc     *jsonrpc.JsonRPC
-	authKey  string
-	systemId string
-	ready    atomic.Bool
+	ip             string
+	password       string
+	jrpc           *jsonrpc.JsonRPC
+	authKey        string
+	systemId       string
+	ready          atomic.Bool
 }
 
 // NewClient creates a new instance of the client. The client handles the connection.
@@ -52,7 +52,7 @@ func NewClient(ip string, opts ...clientOption) *client {
 		jrpc:    jsonrpc.NewJsonRPC(),
 		authKey: "",
 		ready:   atomic.Bool{},
-		ip: ip,
+		ip:      ip,
 	}
 
 	for _, option := range opts {
@@ -101,14 +101,14 @@ func (c *client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 					c.logger.Error(err)
 					return
 				}
-				updateChan<- fullXLink
+				updateChan <- fullXLink
 			case stats := <-statisticsChan:
 				var rawStats xlink.StatsRaw
 				if err := json.Unmarshal(stats.Params, &rawStats); err != nil {
 					c.logger.Error(err)
 					return
 				}
-				statsChan<-rawStats
+				statsChan <- rawStats
 			}
 		}
 	}()
@@ -128,7 +128,7 @@ func (c *client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 		}
 	}
 
-	BREAK:
+BREAK:
 	wg.Wait()
 }
 

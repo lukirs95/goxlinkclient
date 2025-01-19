@@ -9,15 +9,17 @@ type Encoder interface {
 	PhyicalNumber() (int, bool)
 	IsVideoEnabled() (bool, bool)
 	IsAudioEnabled() (bool, bool)
+	HasVideoSignal() (bool, bool)
+	HasAudioSignal() (bool, bool)
 	IsRunning() (bool, bool)
 	IsConnected() (bool, bool)
 	GetReceiver() (EncoderReceiver, bool)
 }
 
 type EncoderRaw struct {
-	Id       string      `json:"id"`
-	Enabled  *bool            `json:"enabled"`
-	Name     string           `json:"name"`
+	Id       string              `json:"id"`
+	Enabled  *bool               `json:"enabled"`
+	Name     string              `json:"name"`
 	Values   *EncoderRawValues   `json:"values"`
 	Receiver *EncoderRawReceiver `json:"receiver"`
 }

@@ -2,7 +2,7 @@ package xlinkclient
 
 import "fmt"
 
-type Logger interface{
+type Logger interface {
 	Info(string)
 	Infof(string, ...interface{})
 	Warn(string)
@@ -11,7 +11,7 @@ type Logger interface{
 	Errorf(string, ...interface{})
 }
 
-type DefaultLogger struct {}
+type DefaultLogger struct{}
 
 func (l DefaultLogger) Info(val string) {
 	fmt.Printf("INFO::%s\n", val)
