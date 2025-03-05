@@ -15,8 +15,8 @@ type EncoderReceiver interface {
 }
 
 type EncoderRawReceiver struct {
-	Id     string    `json:"id"`
-	Name   string         `json:"name"`
+	Id     string            `json:"id"`
+	Name   string            `json:"name"`
 	Values *DecoderRawValues `json:"values"`
 }
 
@@ -81,7 +81,7 @@ func (receiver EncoderRawReceiver) IsRunning() (bool, bool) {
 }
 
 func (receiver EncoderRawReceiver) IsConnected() (bool, bool) {
-	if receiver.Values != nil && receiver.Values.Connected != nil && receiver.Values.XLinkP2P != nil {
+	if receiver.Values != nil && receiver.Values.XLinkP2P != nil {
 		return *receiver.Values.Connected && *receiver.Values.XLinkP2P, true
 	}
 	return false, false

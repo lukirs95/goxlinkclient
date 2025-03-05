@@ -15,8 +15,8 @@ type DecoderSender interface {
 }
 
 type DecoderRawSender struct {
-	Id     string    `json:"id"`
-	Name   string         `json:"name"`
+	Id     string            `json:"id"`
+	Name   string            `json:"name"`
 	Values *DecoderRawValues `json:"values"`
 }
 
@@ -81,7 +81,7 @@ func (sender DecoderRawSender) IsRunning() (bool, bool) {
 }
 
 func (sender DecoderRawSender) IsConnected() (bool, bool) {
-	if sender.Values != nil && sender.Values.Connected != nil && sender.Values.XLinkP2P != nil {
+	if sender.Values != nil && sender.Values.XLinkP2P != nil {
 		return *sender.Values.Connected && *sender.Values.XLinkP2P, true
 	}
 	return false, false
