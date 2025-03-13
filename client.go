@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,13 +16,13 @@ import (
 type clientOption func(c *client)
 
 // WithLogger is an option you can provide to you use your own logger.
-func WithLogger(logger Logger) clientOption {
+func WithLogger(logger *slog.Logger) clientOption {
 	return func(c *client) {
 		c.logger = logger
 	}
 }
 
-// WithLogger lets you adjust the automatic reconnection if an error accurs.
+// WithReconnect lets you adjust the automatic reconnection if an error accurs.
 func WithReconnect(interval time.Duration) clientOption {
 	return func(c *client) {
 		c.reconnectDelay = interval
@@ -36,7 +37,7 @@ func WithPassword(password string) clientOption {
 }
 
 type client struct {
-	logger         Logger
+	logger         *slog.Logger
 	reconnectDelay time.Duration
 	ip             string
 	password       string
@@ -64,7 +65,7 @@ func NewClient(ip string, opts ...clientOption) *client {
 	}
 
 	if c.logger == nil {
-		c.logger = DefaultLogger{}
+		c.logger = slog.New(&NullLogHandler{})
 	}
 
 	if c.reconnectDelay == 0 {
@@ -98,14 +99,14 @@ func (c *client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 			case update := <-responseChan:
 				var fullXLink xlink.XLinkRaw
 				if err := json.Unmarshal(update.Params, &fullXLink); err != nil {
-					c.logger.Error(err)
+					c.logger.Error("failed to unmarshal update message", slog.Any("error", err))
 					return
 				}
 				updateChan <- fullXLink
 			case stats := <-statisticsChan:
 				var rawStats xlink.StatsRaw
 				if err := json.Unmarshal(stats.Params, &rawStats); err != nil {
-					c.logger.Error(err)
+					c.logger.Error("failed to unmarshal statistics message", slog.Any("error", err))
 					return
 				}
 				statsChan <- rawStats
@@ -118,9 +119,9 @@ func (c *client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 		case <-ctx.Done():
 			goto BREAK
 		default:
+			c.logger.Info("Connecting to xlink", slog.String("IP", c.ip))
 			if err := c.connect(ctx, responseChan, statisticsChan); err != nil {
-				c.logger.Error(err)
-				c.logger.Infof("try reconnect to %s", c.ip)
+				c.logger.Error("failed connecting to xlink", slog.Any("error", err))
 				time.Sleep(c.reconnectDelay)
 			} else {
 				goto BREAK

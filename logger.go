@@ -1,33 +1,24 @@
 package xlinkclient
 
-import "fmt"
+import (
+	"context"
+	"log/slog"
+)
 
-type Logger interface {
-	Info(string)
-	Infof(string, ...interface{})
-	Warn(string)
-	Warnf(string, ...interface{})
-	Error(error)
-	Errorf(string, ...interface{})
+type NullLogHandler struct{}
+
+func (h *NullLogHandler) Enabled(context.Context, slog.Level) bool {
+	return false
 }
 
-type DefaultLogger struct{}
+func (h *NullLogHandler) Handle(context.Context, slog.Record) error {
+	return nil
+}
 
-func (l DefaultLogger) Info(val string) {
-	fmt.Printf("INFO::%s\n", val)
+func (h *NullLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return h
 }
-func (l DefaultLogger) Infof(val string, opts ...interface{}) {
-	l.Info(fmt.Sprintf(val, opts...))
-}
-func (l DefaultLogger) Warn(val string) {
-	fmt.Printf("WARN::%s\n", val)
-}
-func (l DefaultLogger) Warnf(val string, opts ...interface{}) {
-	l.Warn(fmt.Sprintf(val, opts...))
-}
-func (l DefaultLogger) Error(err error) {
-	fmt.Printf("ERROR::%s", err.Error())
-}
-func (l DefaultLogger) Errorf(err string, opts ...interface{}) {
-	l.Error(fmt.Errorf(err, opts...))
+
+func (h *NullLogHandler) WithGroup(name string) slog.Handler {
+	return h
 }
