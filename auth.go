@@ -29,7 +29,7 @@ type authAdvise struct {
 	SystemId string `json:"sysid"`
 }
 
-func (c *client) asyncAuthenticate(ctx context.Context, adviseChan jsonrpc.Subscription) {
+func (c *Client) asyncAuthenticate(ctx context.Context, adviseChan jsonrpc.Subscription) {
 	select {
 	case <-ctx.Done():
 		return

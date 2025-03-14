@@ -13,30 +13,30 @@ import (
 	xlink "github.com/lukirs95/goxlinkclient/internal/model"
 )
 
-type clientOption func(c *client)
+type clientOption func(c *Client)
 
 // WithLogger is an option you can provide to you use your own logger.
 func WithLogger(logger *slog.Logger) clientOption {
-	return func(c *client) {
+	return func(c *Client) {
 		c.logger = logger
 	}
 }
 
 // WithReconnect lets you adjust the automatic reconnection if an error accurs.
 func WithReconnect(interval time.Duration) clientOption {
-	return func(c *client) {
+	return func(c *Client) {
 		c.reconnectDelay = interval
 	}
 }
 
 // WithPassword lets you adjust the password that is been used to connect to the system
 func WithPassword(password string) clientOption {
-	return func(c *client) {
+	return func(c *Client) {
 		c.password = password
 	}
 }
 
-type client struct {
+type Client struct {
 	logger         *slog.Logger
 	reconnectDelay time.Duration
 	ip             string
@@ -47,9 +47,9 @@ type client struct {
 	ready          atomic.Bool
 }
 
-// NewClient creates a new instance of the client. The client handles the connection.
-func NewClient(ip string, opts ...clientOption) *client {
-	c := &client{
+// NewClient creates a new instance of the client. The Client handles the connection.
+func NewClient(ip string, opts ...clientOption) *Client {
+	c := &Client{
 		jrpc:    jsonrpc.NewJsonRPC(),
 		authKey: "",
 		ready:   atomic.Bool{},
@@ -83,7 +83,7 @@ type StatsChan chan Stats
 
 // Connect attempts to connect to the system. It is blocking!
 // If you cancle the context, the connection is closed.
-func (c *client) Connect(ctx context.Context, updateChan UpdateChan, statsChan StatsChan) {
+func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan StatsChan) {
 	responseChan := make(jsonrpc.Subscription)
 	statisticsChan := make(jsonrpc.Subscription)
 
@@ -133,7 +133,7 @@ BREAK:
 	wg.Wait()
 }
 
-func (c *client) connect(ctx context.Context, responseChan jsonrpc.Subscription, statsChan jsonrpc.Subscription) error {
+func (c *Client) connect(ctx context.Context, responseChan jsonrpc.Subscription, statsChan jsonrpc.Subscription) error {
 	c.jrpc.SubscribeMethod(ctx, "systems.full", responseChan)
 	c.jrpc.SubscribeMethod(ctx, "systems.update", responseChan)
 	c.jrpc.SubscribeMethod(ctx, "systems.stats", statsChan)
@@ -155,12 +155,12 @@ func (c *client) connect(ctx context.Context, responseChan jsonrpc.Subscription,
 	return err
 }
 
-// Ready returns true if the client is connected to the system.
-func (c *client) Ready() bool {
+// Ready returns true if the Client is connected to the system.
+func (c *Client) Ready() bool {
 	return c.ready.Load()
 }
 
-func (c *client) onDisconnect() {
+func (c *Client) onDisconnect() {
 	c.authKey = ""
 	c.ready.Store(false)
 }

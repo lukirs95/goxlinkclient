@@ -7,7 +7,7 @@ import (
 )
 
 type actionMessage struct {
-	System    string          `json:"sysid"`
+	System    string `json:"sysid"`
 	EnDecoder string `json:"id"`
 }
 
@@ -16,7 +16,7 @@ type actionResponse struct {
 }
 
 // StartEnDecoder lets you start any encoder or decoder by providing its identifier
-func (c *client) StartEnDecoder(ctx context.Context, endecoder string) error {
+func (c *Client) StartEnDecoder(ctx context.Context, endecoder string) error {
 	if res, err := c.jrpc.SendRequest(ctx, "start", actionMessage{c.systemId, endecoder}); err != nil {
 		return err
 	} else {
@@ -32,7 +32,7 @@ func (c *client) StartEnDecoder(ctx context.Context, endecoder string) error {
 }
 
 // StopEnDecoder lets you start any encoder or decoder by providing its identifier
-func (c *client) StopEnDecoder(ctx context.Context, endecoder string) error {
+func (c *Client) StopEnDecoder(ctx context.Context, endecoder string) error {
 	if res, err := c.jrpc.SendRequest(ctx, "stop", actionMessage{
 		System:    c.systemId,
 		EnDecoder: endecoder,

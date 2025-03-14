@@ -7,9 +7,9 @@ import (
 )
 
 type configureMessage struct {
-	System    string         `json:"sysid"`
-	EnDecoder string `json:"id"`
-	Values    configureValues   `json:"values"`
+	System    string          `json:"sysid"`
+	EnDecoder string          `json:"id"`
+	Values    configureValues `json:"values"`
 }
 
 type configureValues struct {
@@ -21,7 +21,7 @@ type configureResponse struct {
 }
 
 // EnableVideo lets you enable Video transmission on encoders decoders
-func (c *client) EnableVideo(ctx context.Context, endecoder string) error {
+func (c *Client) EnableVideo(ctx context.Context, endecoder string) error {
 	if res, err := c.jrpc.SendRequest(ctx, "config", configureMessage{
 		System:    c.systemId,
 		EnDecoder: endecoder,
@@ -43,7 +43,7 @@ func (c *client) EnableVideo(ctx context.Context, endecoder string) error {
 }
 
 // EnableVideo lets you disable Video transmission on encoders decoders
-func (c *client) DisableVideo(ctx context.Context, endecoder string) error {
+func (c *Client) DisableVideo(ctx context.Context, endecoder string) error {
 	if res, err := c.jrpc.SendRequest(ctx, "config", configureMessage{
 		System:    c.systemId,
 		EnDecoder: endecoder,
