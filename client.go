@@ -48,7 +48,6 @@ func NewClient(ip string, opts ...clientOption) *Client {
 		c.logger = slog.New(&NullLogHandler{})
 	}
 
-	c.jrpc.OnDisconnect = c.onDisconnect
 	c.jrpc.SetReadLimit(32768 << 2)
 	return c
 }
@@ -109,7 +108,7 @@ func (c *Client) connect(ctx context.Context, responseChan jsonrpc.Subscription,
 	go c.asyncAuthenticate(withTimeout, notifyAuth)
 
 	endpoint := fmt.Sprintf("ws://%s/jsonrpc", c.ip)
-	err := c.jrpc.Listen(ctx, endpoint)
+	err := c.jrpc.Connect(ctx, endpoint, nil)
 
 	c.jrpc.UnsubscribeMethod("systems.full")
 	c.jrpc.UnsubscribeMethod("systems.update")
@@ -122,9 +121,4 @@ func (c *Client) connect(ctx context.Context, responseChan jsonrpc.Subscription,
 // Ready returns true if the Client is connected to the system.
 func (c *Client) Ready() bool {
 	return c.ready.Load()
-}
-
-func (c *Client) onDisconnect() {
-	c.authKey = ""
-	c.ready.Store(false)
 }
