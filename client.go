@@ -18,33 +18,17 @@ type clientOption func(c *Client)
 // WithLogger is an option you can provide to you use your own logger.
 func WithLogger(logger *slog.Logger) clientOption {
 	return func(c *Client) {
-		c.logger = logger
-	}
-}
-
-// WithReconnect lets you adjust the automatic reconnection if an error accurs.
-func WithReconnect(interval time.Duration) clientOption {
-	return func(c *Client) {
-		c.reconnectDelay = interval
-	}
-}
-
-// WithPassword lets you adjust the password that is been used to connect to the system
-func WithPassword(password string) clientOption {
-	return func(c *Client) {
-		c.password = password
+		c.logger = logger.With(slog.String("system", c.ip))
 	}
 }
 
 type Client struct {
-	logger         *slog.Logger
-	reconnectDelay time.Duration
-	ip             string
-	password       string
-	jrpc           *jsonrpc.JsonRPC
-	authKey        string
-	systemId       string
-	ready          atomic.Bool
+	logger   *slog.Logger
+	ip       string
+	jrpc     *jsonrpc.JsonRPC
+	authKey  string
+	systemId string
+	ready    atomic.Bool
 }
 
 // NewClient creates a new instance of the client. The Client handles the connection.
@@ -60,19 +44,10 @@ func NewClient(ip string, opts ...clientOption) *Client {
 		option(c)
 	}
 
-	if c.password == "" {
-		c.password = "123456!"
-	}
-
 	if c.logger == nil {
 		c.logger = slog.New(&NullLogHandler{})
 	}
 
-	if c.reconnectDelay == 0 {
-		c.reconnectDelay = time.Second * 10
-	}
-
-	authMessage.Password = c.password
 	c.jrpc.OnDisconnect = c.onDisconnect
 	c.jrpc.SetReadLimit(32768 << 2)
 	return c
@@ -81,9 +56,10 @@ func NewClient(ip string, opts ...clientOption) *Client {
 type UpdateChan chan XLink
 type StatsChan chan Stats
 
-// Connect attempts to connect to the system. It is blocking!
-// If you cancle the context, the connection is closed.
-func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan StatsChan) {
+// Connect opens the connection to the xlink websocket. It is blocking!
+// You MUST read from updateChan and statsChan.
+// If you cancel the context, the connection is closed.
+func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan StatsChan) error {
 	responseChan := make(jsonrpc.Subscription)
 	statisticsChan := make(jsonrpc.Subscription)
 
@@ -114,23 +90,11 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 		}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			goto BREAK
-		default:
-			c.logger.Info("Connecting to xlink", slog.String("IP", c.ip))
-			if err := c.connect(ctx, responseChan, statisticsChan); err != nil {
-				c.logger.Error("failed connecting to xlink", slog.Any("error", err))
-				time.Sleep(c.reconnectDelay)
-			} else {
-				goto BREAK
-			}
-		}
-	}
-
-BREAK:
+	c.logger.Info("connect to xlink")
+	err := c.connect(ctx, responseChan, statisticsChan)
+	c.logger.Error("connection closed", slog.Any("error", err))
 	wg.Wait()
+	return err
 }
 
 func (c *Client) connect(ctx context.Context, responseChan jsonrpc.Subscription, statsChan jsonrpc.Subscription) error {

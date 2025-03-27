@@ -19,7 +19,7 @@ var authMessage struct {
 	Auth     bool   `json:"auth"`
 	UserId   string `json:"userid"`
 	Password string `json:"pass"`
-}{Auth: true, UserId: "admin"}
+}{Auth: true, UserId: "admin", Password: "123456!"}
 
 type authResponse struct {
 	AuthKey string `json:"authKey"`
@@ -34,6 +34,7 @@ func (c *Client) asyncAuthenticate(ctx context.Context, adviseChan jsonrpc.Subsc
 	case <-ctx.Done():
 		return
 	case rawAdvise := <-adviseChan:
+		c.logger.Debug("Authenticate")
 		advise := authAdvise{}
 		if err := json.Unmarshal(rawAdvise.Params, &advise); err != nil {
 			return
@@ -54,5 +55,6 @@ func (c *Client) asyncAuthenticate(ctx context.Context, adviseChan jsonrpc.Subsc
 		}
 		c.authKey = authResponse.AuthKey
 		c.ready.Store(true)
+		c.logger.Info("Authentication successfull")
 	}
 }
