@@ -63,12 +63,14 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 
 	var wg sync.WaitGroup
 
+	withCancel, cancel := context.WithCancel(ctx)
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-withCancel.Done():
 				return
 			case update := <-responseChan:
 				var fullXLink XLink
@@ -95,6 +97,7 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 	} else {
 		c.logger.Info("connection closed")
 	}
+	cancel()
 	wg.Wait()
 	return err
 }
