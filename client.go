@@ -10,12 +10,11 @@ import (
 	"time"
 
 	jsonrpc "github.com/lukirs95/gojsonrpc"
-	xlink "github.com/lukirs95/goxlinkclient/internal/model"
 )
 
 type clientOption func(c *Client)
 
-// WithLogger is an option you can provide to you use your own logger.
+// WithLogger is an option you can provide to you use your own slog logger.
 func WithLogger(logger *slog.Logger) clientOption {
 	return func(c *Client) {
 		c.logger = logger.With(slog.String("system", c.ip))
@@ -31,7 +30,7 @@ type Client struct {
 	ready    atomic.Bool
 }
 
-// NewClient creates a new instance of the client. The Client handles the connection.
+// NewClient creates a xlink client. The Client handles the websocket connection.
 func NewClient(ip string, opts ...clientOption) *Client {
 	c := &Client{
 		jrpc:    jsonrpc.NewJsonRPC(),
@@ -72,14 +71,14 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 			case <-ctx.Done():
 				return
 			case update := <-responseChan:
-				var fullXLink xlink.XLinkRaw
+				var fullXLink XLink
 				if err := json.Unmarshal(update.Params, &fullXLink); err != nil {
 					c.logger.Error("failed to unmarshal update message", slog.Any("error", err))
 					return
 				}
 				updateChan <- fullXLink
 			case stats := <-statisticsChan:
-				var rawStats xlink.StatsRaw
+				var rawStats Stats
 				if err := json.Unmarshal(stats.Params, &rawStats); err != nil {
 					c.logger.Error("failed to unmarshal statistics message", slog.Any("error", err))
 					return
@@ -91,7 +90,11 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 
 	c.logger.Info("connect to xlink")
 	err := c.connect(ctx, responseChan, statisticsChan)
-	c.logger.Error("connection closed", slog.Any("error", err))
+	if err != nil {
+		c.logger.Error("unexpected closed connection", slog.Any("error", err))
+	} else {
+		c.logger.Info("connection closed")
+	}
 	wg.Wait()
 	return err
 }

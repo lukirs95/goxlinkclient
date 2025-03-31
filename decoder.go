@@ -1,49 +1,34 @@
-package model
+package xlinkclient
 
 import "strconv"
 
-type Decoder interface {
-	Ident() string
-	GetName() (string, bool)
-	IsEnabled() (bool, bool)
-	PhyicalNumber() (int, bool)
-	IsVideoEnabled() (bool, bool)
-	IsAudioEnabled() (bool, bool)
-	HasVideoSignal() (bool, bool)
-	HasAudioSignal() (bool, bool)
-	IsRunning() (bool, bool)
-	HasSender() (bool, bool)
-	IsConnected() (bool, bool)
-	GetSender() (DecoderSender, bool)
+type Decoder struct {
+	Id      string         `json:"id"`
+	Enabled *bool          `json:"enabled"`
+	Name    string         `json:"name"`
+	Values  *DecoderValues `json:"values"`
+	Sender  *DecoderSender `json:"sender"`
 }
 
-type DecoderRaw struct {
-	Id      string            `json:"id"`
-	Enabled *bool             `json:"enabled"`
-	Name    string            `json:"name"`
-	Values  *DecoderRawValues `json:"values"`
-	Sender  *DecoderRawSender `json:"sender"`
-}
-
-func (decoder DecoderRaw) Ident() string {
+func (decoder Decoder) Ident() string {
 	return decoder.Id
 }
 
-func (decoder DecoderRaw) GetName() (string, bool) {
+func (decoder Decoder) GetName() (string, bool) {
 	if decoder.Name != "" {
 		return decoder.Name, true
 	}
 	return "", false
 }
 
-func (decoder DecoderRaw) IsEnabled() (bool, bool) {
+func (decoder Decoder) IsEnabled() (bool, bool) {
 	if decoder.Enabled != nil {
 		return *decoder.Enabled, true
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) PhyicalNumber() (int, bool) {
+func (decoder Decoder) PhyicalNumber() (int, bool) {
 	if decoder.Values != nil && decoder.Values.VCard != "" {
 		num, err := strconv.Atoi(decoder.Values.VCard)
 		if err != nil {
@@ -54,14 +39,14 @@ func (decoder DecoderRaw) PhyicalNumber() (int, bool) {
 	return 0, false
 }
 
-func (decoder DecoderRaw) IsVideoEnabled() (bool, bool) {
+func (decoder Decoder) IsVideoEnabled() (bool, bool) {
 	if decoder.Values != nil && decoder.Values.Video2110Enabled != nil {
 		return *decoder.Values.Video2110Enabled, true
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) IsAudioEnabled() (bool, bool) {
+func (decoder Decoder) IsAudioEnabled() (bool, bool) {
 	if decoder.Values != nil && decoder.Values.Audio2110Enabled != nil {
 		return *decoder.Values.Audio2110Enabled, true
 	}
@@ -71,49 +56,49 @@ func (decoder DecoderRaw) IsAudioEnabled() (bool, bool) {
 	return false, false
 }
 
-func (decoder DecoderRaw) HasVideoSignal() (bool, bool) {
+func (decoder Decoder) HasVideoSignal() (bool, bool) {
 	if decoder.Values != nil && decoder.Values.VOut != "" {
 		return decoder.Values.VOut != "No Signal", true
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) HasAudioSignal() (bool, bool) {
+func (decoder Decoder) HasAudioSignal() (bool, bool) {
 	if decoder.Values != nil && decoder.Values.AOut != "" {
 		return decoder.Values.AOut != "No Signal", true
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) IsRunning() (bool, bool) {
+func (decoder Decoder) IsRunning() (bool, bool) {
 	if decoder.Values != nil && decoder.Values.Running != nil {
 		return *decoder.Values.Running, true
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) HasSender() (bool, bool) {
+func (decoder Decoder) HasSender() (bool, bool) {
 	if decoder.Sender != nil && decoder.Sender.Id != "" {
 		return decoder.Sender.Id != "none", true
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) IsConnected() (bool, bool) {
+func (decoder Decoder) IsConnected() (bool, bool) {
 	if decoder.Sender != nil {
 		return decoder.Sender.IsConnected()
 	}
 	return false, false
 }
 
-func (decoder DecoderRaw) GetSender() (DecoderSender, bool) {
+func (decoder Decoder) GetSender() (*DecoderSender, bool) {
 	if _, OK := decoder.HasSender(); OK {
 		return decoder.Sender, true
 	}
 	return nil, false
 }
 
-type DecoderRawValues struct {
+type DecoderValues struct {
 	VIn              string `json:"vIn"`
 	VOut             string `json:"vOut"`
 	AIn              string `json:"aIn"`
