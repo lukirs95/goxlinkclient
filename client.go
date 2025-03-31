@@ -51,7 +51,12 @@ func NewClient(ip string, opts ...clientOption) *Client {
 	return c
 }
 
-type UpdateChan chan XLink
+type Update struct {
+	*Client
+	XLink
+}
+
+type UpdateChan chan Update
 type StatsChan chan Stats
 
 // Connect opens the connection to the xlink websocket. It is blocking!
@@ -78,7 +83,10 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 					c.logger.Error("failed to unmarshal update message", slog.Any("error", err))
 					return
 				}
-				updateChan <- fullXLink
+				updateChan <- Update{
+					Client: c,
+					XLink:  fullXLink,
+				}
 			case stats := <-statisticsChan:
 				var rawStats Stats
 				if err := json.Unmarshal(stats.Params, &rawStats); err != nil {
