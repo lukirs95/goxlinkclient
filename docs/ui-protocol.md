@@ -45,13 +45,14 @@ beim Öffnen eine Detailansicht und kündigen sie beim Schließen wieder.
 - `sysid` ist immer das **lokale** System, auch wenn die Unit zu einem Remote-System gehört
   (z. B. `id:"X8A2222-E5"` über das lokale `X8A1111`).
 - Unit-IDs: `<sysid>-E<n>` (XLink-Encoder), `<sysid>-D<n>` (XLink-Decoder),
-  `<sysid>-srtE<n>` (SRT-Sender), `<sysid>-srtD<n>` (SRT-Receiver).
+  `<sysid>-NdiE<n>` (NDI-Sender), `<sysid>-NdiD<n>` (NDI-Receiver), `<sysid>-srtE<n>` (SRT-Sender),
+  `<sysid>-srtD<n>` (SRT-Receiver).
 
 **`data` – gemeinsame Felder**
 
 | Key | Typ | Bedeutung |
 |---|---|---|
-| `stateType` | number | **1** = XLink-Encoder, **2** = XLink-Decoder, **8** = SRT-Sender, **9** = SRT-Receiver |
+| `stateType` | number | **1** = XLink-Encoder, **2** = XLink-Decoder, **3** = NDI-Sender (SDI→NDI), **4** = NDI-Receiver (NDI→SDI), **8** = SRT-Sender, **9** = SRT-Receiver – identisch mit `type` bei `newVideo` |
 | `nmosID` | object | `{device, video, audio, anc}` (UUIDs) |
 | `mVideo`, `sdiDrivers`, `sdiDriversV2`, `running`, `xlinkRTT` | | Status |
 | `values` | object | **aktuelle Konfiguration** (siehe unten) |
@@ -366,7 +367,7 @@ Alle mit `params: {sysid:"<lokale sysid>", id:"<unit id>"}`, Antwort `{method, i
 | `resetSSRC` | Video › Reset Buffer | Enc | Fehler `"video not running"`, wenn gestoppt |
 | `flushAudio` | General › Reset Audio Buffer | Dec | Fehler `"video not running"`, wenn gestoppt |
 | `deleteVideo` | Unit löschen | Enc/Dec/SRT | Antwort `{method, sysid, response:true}`; funktioniert für `-E`, `-D`, `-srtE`, `-srtD` |
-| `newVideo` | Video › Senders/Receivers › Add New | – | **ohne `id`**: `params:{sysid, values:{type}}` mit `type` 1 = XLink-Encoder, 2 = XLink-Decoder (vermutl. wie `stateType`, also 8/9 für SRT). Antwort `{method, sysid, response:true}` **ohne ID der neuen Unit** – die kommt nur über `systems.update` |
+| `newVideo` | Video › Senders/Receivers/NDI/SRT › Add New | – | **ohne `id`**: `params:{sysid, values:{type}}`, `type` = `stateType` (1 Enc, 2 Dec, 3 NDI-Sender, 4 NDI-Receiver, 8 SRT-Sender, 9 SRT-Receiver – alle per Mitschnitt bestätigt). Antwort `{method, sysid, response:true}` **ohne ID der neuen Unit** – die kommt nur über `systems.update` |
 
 Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with Bars“, „Add New“
 für SRT und NDI.
@@ -397,7 +398,39 @@ Keys und Typen:
 - Die Passphrase geht im Klartext über den (unverschlüsselten) WebSocket.
 - Beim SRT Receiver wurde `aMode` (Audio-Codec) nicht geändert.
 
-### 4.6 Im Mitschnitt nicht vorgekommen
+### 4.6 NDI Sender / Receiver
+
+Angelegt mit `newVideo type 3/4`, konfiguriert per `config`, gelöscht per `deleteVideo`.
+Start/Stop wurde nicht mitgeschnitten (vermutlich `start`/`stop` wie bei Enc/Dec).
+
+**NDI-Sender** (`-NdiE<n>`, `stateType 3`, SDI rein → NDI raus)
+
+| Key | Typ (gesendet) | Bedeutung |
+|---|---|---|
+| `name`, `autoStart` | string, bool | |
+| `vCard` | string | SDI-Eingang (`"0"` None, `"1"`..`"8"`) |
+| `vMode`, `vModeB` | string | Video standard / Bars standard |
+| `aCh` | number | Audio-Kanäle (2/8/16) |
+| *(nur gelesen)* | | `ndiName`, `ndiGroupOn`, `ndiGroup`, `ndiAllowI`, `aMode`, `aSync`, `vBit`, `use1080pNotPsf`, `vModeC`, `mtu` (9000) |
+
+**NDI-Receiver** (`-NdiD<n>`, `stateType 4`, NDI rein → SDI raus)
+
+| Key | Typ (gesendet) | Bedeutung |
+|---|---|---|
+| `name`, `autoStart` | string, bool | |
+| `vAVSOn`, `vFRCOn` | bool | AV Sync, FPS Sync |
+| `ndiT` | bool | |
+| `vSDIBuffer` | bool | |
+| `aCh` | number | |
+| `vCard`, `vMode` | string | SDI-Ausgang, Video standard (`vMode` pusht `vModeA` mit) |
+| `sdilevelA` | **string `"true"`/`"false"`** | SDI Level A/B – gelesen als bool! |
+| `use1080pNotPsf` | bool | |
+| `vResize` | bool | |
+| *(nur gelesen)* | | `ndiSource`, `ndiSourceName`, `ndiGroupsOn`, `ndiGroups`, `ndiAllowI`, `vAVDiff`, `vFQOn`, `vModeC`, `mtu` |
+
+Die NDI-Quellenauswahl (`ndiSource`) wurde nicht gesetzt (`ndifind` war leer).
+
+### 4.7 Im Mitschnitt nicht vorgekommen
 
 Encoder: `name`, `receiver`, `vNoS`, Source-Input (`vCard`), Audio-Enabled, Sec-Netz (`*NetSec*`).
 Decoder: `sender`, `vBnoInText`, `vBnoInFormatOn`/`NameOn`/`SysNameOn`, `sdilevelA`,
@@ -493,9 +526,9 @@ HTTP (vor diesem Durchlauf nicht mitgeschnitten).
 
 ## Offene Punkte
 
-- „Add New“ für SRT/NDI ist noch nicht mitgeschnitten.
+- NDI: Quellenauswahl (`ndiSource`), NDI-Name/Gruppen; Start/Stop für NDI/SRT (vermutlich wie Enc/Dec).
 - System: Profile, User, Admin Proxy, Version/Update, License, weitere NMOS-Felder
   (Domain, Registry, Labels) sowie PTP-Werte ohne UI.
-- Die in 4.6 genannten Encoder-/Decoder-Felder fehlen noch.
+- Die in 4.7 genannten Encoder-/Decoder-Felder fehlen noch.
 - Welche weiteren `sys.subscribe`-IDs existieren (Profile, Ports, Proxy, Version …)?
 - Bedeutung einiger Keys ohne UI-Pendant (`vULL`, `vCCB`, `rateControl`, `oldRDP`, …).
