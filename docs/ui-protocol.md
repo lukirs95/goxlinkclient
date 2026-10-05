@@ -386,6 +386,7 @@ Gruppe geschickt.
 | `dnsSys` | System Config › DNS & MTU | `{dnsStatic}`, `{dnsStaticIp1}`, `{dnsStaticIp2}` | `sys.update configSys` |
 | `setSystemMTU` | System Config › DNS & MTU | `{mtuTrunk}` (number) | `sys.update configSys` |
 | `manAddPeer` | System Config › Add System | `{systemId:"<remote sysid>"}` | – |
+| `manIpPeer` | Remote System › Manual IP Connect | `{peer:"<remote sysid>", manIp:"<ip>", manIpSec:"<ip>", manPort:"10501", manAutCon:false}` – immer der komplette Satz; Löschen = `manIp/manIpSec/manPort:""`, `manAutCon:false` | vermutl. `systems.update` (Peer-Felder `manIp`, `manIpSec`, `manPort`, `manAutCon`) |
 
 **`sys.update`-Push** (solange `sys.subscribe configSys` aktiv ist):
 
