@@ -359,11 +359,15 @@ und einem lokalen Decoder (`<local>-D1`).
 
 - Das Frontend schickt **immer genau einen Key pro Request**, und zwar sofort bei jeder
   Änderung. Slider (z. B. TBR) erzeugen beim Ziehen einen Request pro Zwischenwert.
+- **Das Gerät akzeptiert auch mehrere Keys in einem Request** (verifiziert an einem
+  lokalen Decoder mit `{"name":…,"autoStart":…}`): Beide Werte wurden übernommen und im
+  selben `state.update` gemeldet. Die Library schickt alle Settings eines
+  `Configure*`-Aufrufs gebündelt.
 - Wie bei `state.subscribe` ist `sysid` das **lokale** System, auch bei Remote-Units.
 - `state.update` kommt nur, solange die Unit per `state.subscribe` abonniert ist. Das Delta
   enthält geänderte `values` und ggf. geänderte Optionslisten/Limits (siehe 4.4).
-- Die Library nutzt `config` bereits (`EnableVideo`/`DisableVideo` mit `v2110NetPriEnabled`).
-  Das passt zum Decoder, beim Encoder schaltet die UI 2110-Video aber über `video`.
+- Beim Encoder schaltet die UI 2110-Video über `video`, beim Decoder über
+  `v2110NetPriEnabled`.
 
 **Typen, wie sie die UI sendet**
 

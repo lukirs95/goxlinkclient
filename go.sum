@@ -1,6 +1,4 @@
 github.com/coder/websocket v1.8.13 h1:f3QZdXy7uGVz+4uCJy2nTZyM0yTBj8yANEHhqlXZ9FE=
 github.com/coder/websocket v1.8.13/go.mod h1:LNVeNrXQZfe5qhS9ALED3uA+l5pPqvwXg3CKoDBB2gs=
-github.com/lukirs95/gojsonrpc v1.0.1 h1:E9dsaKn3uKgLH96odTpPmD0gr7Pu5XgWSHaSq6Ymsz8=
-github.com/lukirs95/gojsonrpc v1.0.1/go.mod h1:HCk0lPQXtUUCZR4XUCDFr5bUL3IxIqjCnKxE/lJst3g=
 github.com/lukirs95/gojsonrpc v1.1.0 h1:HmM1Jj75FgfCWU/4i+4vdWoRc9I2poweNxIOMhwG5Go=
 github.com/lukirs95/gojsonrpc v1.1.0/go.mod h1:HCk0lPQXtUUCZR4XUCDFr5bUL3IxIqjCnKxE/lJst3g=

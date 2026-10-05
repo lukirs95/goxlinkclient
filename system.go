@@ -28,7 +28,7 @@ type System struct {
 	NDIEncoders []NDIEncoder
 	NDIDecoders []NDIDecoder
 	Interfaces  []Interface
-	Trunks     []Trunk
+	Trunks      []Trunk
 	// Peers are the configured remote systems.
 	Peers []Peer
 }

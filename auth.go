@@ -3,58 +3,73 @@ package xlinkclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
 
 	jsonrpc "github.com/lukirs95/gojsonrpc"
 )
 
-const (
-	method_auth jsonrpc.Method = "auth"
+// authTimeout is how long to wait for the device to announce itself after the
+// connection was opened.
+const authTimeout = 5 * time.Second
+
+var (
+	// ErrAuthFailed is returned by Run if the device rejected the credentials.
+	ErrAuthFailed = errors.New("xlinkclient: authentication failed")
+	// ErrAuthTimeout is returned by Run if the device did not ask for
+	// authentication in time.
+	ErrAuthTimeout = errors.New("xlinkclient: device did not request authentication")
 )
 
-var authMessage struct {
+type authParams struct {
 	Auth     bool   `json:"auth"`
-	UserId   string `json:"userid"`
+	UserID   string `json:"userid"`
 	Password string `json:"pass"`
-} = struct {
-	Auth     bool   `json:"auth"`
-	UserId   string `json:"userid"`
-	Password string `json:"pass"`
-}{Auth: true, UserId: "admin", Password: "123456!"}
-
-type authResponse struct {
-	AuthKey string `json:"authKey"`
 }
 
-type authAdvise struct {
-	SystemId string `json:"sysid"`
-}
+// authenticate waits for the device's notify.auth message, which carries the
+// system ID, and logs in. It returns nil if ctx is done first.
+func (c *Client) authenticate(ctx context.Context, advice jsonrpc.Subscription) error {
+	timer := time.NewTimer(authTimeout)
+	defer timer.Stop()
 
-func (c *Client) asyncAuthenticate(ctx context.Context, adviseChan jsonrpc.Subscription) {
+	var msg jsonrpc.Notification
 	select {
 	case <-ctx.Done():
-		return
-	case rawAdvise := <-adviseChan:
-		c.logger.Debug("Authenticate")
-		advise := authAdvise{}
-		if err := json.Unmarshal(rawAdvise.Params, &advise); err != nil {
-			return
-		}
-		c.systemId = advise.SystemId
-
-		response, err := c.jrpc.SendRequest(context.Background(), method_auth, authMessage)
-
-		if err != nil {
-			c.authKey = ""
-			return
-		}
-
-		var authResponse authResponse
-		err = json.Unmarshal(response, &authResponse)
-		if err != nil {
-			c.authKey = ""
-		}
-		c.authKey = authResponse.AuthKey
-		c.ready.Store(true)
-		c.logger.Info("Authentication successfull")
+		return nil
+	case <-timer.C:
+		return ErrAuthTimeout
+	case msg = <-advice:
 	}
+
+	var adv struct {
+		SysID SystemID `json:"sysid"`
+	}
+	if err := json.Unmarshal(msg.Params, &adv); err != nil {
+		return fmt.Errorf("xlinkclient: decode %s: %w", notifyAuthentication, err)
+	}
+	c.mu.Lock()
+	c.systemID = adv.SysID
+	c.mu.Unlock()
+
+	raw, err := c.jrpc.SendRequest(ctx, methodAuth, authParams{Auth: true, UserID: c.user, Password: c.password})
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return fmt.Errorf("xlinkclient: authenticate: %w", err)
+	}
+	var res result
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return fmt.Errorf("xlinkclient: decode auth response: %w", err)
+	}
+	if !res.Response {
+		return ErrAuthFailed
+	}
+
+	c.setReady(true)
+	c.logger.Info("authenticated", slog.String("sysid", string(adv.SysID)))
+	return nil
 }
