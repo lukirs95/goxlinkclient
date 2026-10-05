@@ -1,9 +1,10 @@
 # VideoXLink Web-UI – Konfiguration & JSON-RPC (FW 1.8.4.6)
 
 Reverse-Engineering-Protokoll des Web-Frontends (PrimeVue-App) eines X8-R2-Systems mit
-Firmware **1.8.4.6**. Erkundet wurde **nur lesend**: Dialoge geöffnet, Tabs gewechselt,
-nichts geändert oder gespeichert. Welche Requests beim *Ändern* einer Einstellung gesendet
-werden, ist daher noch offen (siehe [Offene Punkte](#offene-punkte)).
+Firmware **1.8.4.6**. Abschnitte 1–3 stammen aus einer rein lesenden Erkundung (Dialoge
+geöffnet, Tabs gewechselt). Abschnitt 4 stammt aus einem Mitschnitt, bei dem ein Remote-Sender
+und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden.
+SRT-, Netzwerk- und System-Schreibrequests fehlen noch (siehe [Offene Punkte](#offene-punkte)).
 
 Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 
@@ -125,7 +126,7 @@ Tabs: **General · Video · Audio · Source (› Video, › Audio bei 2110) · X
 | | Auto Start | `autoStart` |
 | | Bars standard | `vModeB` |
 | | Start this time with Bars | – (einmalige Aktion) |
-| | Reset Stats, START | Aktionen |
+| | Reset Stats → `resetVstat`, START → `start` | Aktionen (siehe 4.3) |
 | Video | Codec | `vCodec` |
 | | Bits | `vBit` |
 | | Color | `vColor` |
@@ -135,7 +136,7 @@ Tabs: **General · Video · Audio · Source (› Video, › Audio bei 2110) · X
 | | GOP (Wert + ON / „Auto“ wenn aus) | `vGOP`, `vGOPOn` |
 | | FEC Level | `vFEC` (+ `vFecLDGM`) |
 | | TBR (Mbps) | `vTBR` |
-| | Reset Buffer | Aktion |
+| | Reset Buffer → `resetSSRC` | Aktion (siehe 4.3) |
 | Audio | Compression | `aMode` |
 | | Bit depth | `aBit` |
 | | Audio channels | `aCh` |
@@ -144,14 +145,14 @@ Tabs: **General · Video · Audio · Source (› Video, › Audio bei 2110) · X
 | Source | Input | `vCard` |
 | | Video standard (SDI) | `vMode` |
 | | Audio (SDI) | `audio` |
-| Source › Video (2110) | Enabled | `v2110Enabled` |
+| Source › Video (2110) | Enabled | `video` *(beobachtet; nicht `v2110Enabled`)* |
 | | Lock Video (Auto=off) | `vModeLock` |
 | | Video standard | `vMode` |
 | | ETH | `v2110NetPri` |
 | | Source IP | `v2110SDPSourceIp` |
 | | Pri Enabled / Payload ID / IP / Port | `v2110NetPriEnabled`, `v2110RTPpayload`, `v2110NetPriIp`, `v2110NetPriPort` |
 | | (Sec) | `v2110NetSec*`, `v2110SecSourceIp` |
-| Source › Audio (2110) | Enabled, ETH, Source IP | `a2110Enabled`, `a2110NetPri`, `a2110SDPSourceIp` |
+| Source › Audio (2110) | Enabled, ETH, Source IP | Enabled nicht mitgeschnitten (vermutl. `audio`), `a2110NetPri`, `a2110SDPSourceIp` |
 | | Pri Enabled / Payload ID / IP / Port | `a2110NetPriEnabled`, `a2110RTPpayload`, `a2110NetPriIp`, `a2110NetPriPort` |
 | | Channels in SDP | `a2110SDPaCh` |
 | | Packet Time (0.125 ms …) | `a2110PacketTime` |
@@ -180,7 +181,7 @@ Tabs: **General · Signal Gen · Destination (› Video, › Audio bei 2110) · 
 | | FPS Sync | `vFRCOn` |
 | | Packet Buffer (ms, 10–…) | `pbuf` |
 | | Allow Late Frames | `late` |
-| | Reset Audio Buffer, Reset Stats, START, Restart XLink Tunnel | Aktionen |
+| | Reset Audio Buffer → `flushAudio`, Reset Stats → `resetVstat`, START → `start`, Restart XLink Tunnel (nicht mitgeschnitten) | Aktionen (siehe 4.3) |
 | Signal Gen | Signal No In (ON) | `vBnoInOn` |
 | | Time Delay (s) | `vBnoIn` |
 | | Signal Type | `vBnoInType` |
@@ -192,9 +193,9 @@ Tabs: **General · Signal Gen · Destination (› Video, › Audio bei 2110) · 
 | | Video standard (SDI) | `vMode` (+ `vModeA`) |
 | | SDI Level A/B | `sdilevelA` |
 | | 1080p Not PsF | `use1080pNotPsf` |
-| Destination › Video (2110) | Enabled, ETH, Stop on No Signal | `v2110Enabled`, `v2110NetPri`, `v2110StopNoIn` |
+| Destination › Video (2110) | Enabled, ETH, Stop on No Signal | `v2110NetPriEnabled` *(wie Pri Enabled)*, `v2110NetPri`, `v2110StopNoIn` |
 | | Pri Enabled / Payload ID / IP / Port | `v2110NetPriEnabled`, `v2110RTPpayload`, `v2110NetPriIp`, `v2110NetPriPort` |
-| Destination › Audio (2110) | Enabled, ETH, Stop on No Signal | `a2110Enabled`, `a2110NetPri`, `a2110StopNoIn` |
+| Destination › Audio (2110) | Enabled, ETH, Stop on No Signal | `a2110NetPriEnabled` *(wie Pri Enabled)*, `a2110NetPri`, `a2110StopNoIn` |
 | | Pri Enabled / Payload ID / IP / Port | `a2110NetPriEnabled`, `a2110RTPpayload`, `a2110NetPriIp`, `a2110NetPriPort` |
 | | Packet Time | `a2110PacketTime` |
 | XLink | Force Eth | `ethSoMark` |
@@ -291,9 +292,86 @@ Manual IP Connect, System ID, Version, Power.
 
 ---
 
+## 4. Schreib-Requests (Encoder / Decoder)
+
+Mitgeschnitten an einem Remote-Encoder (`<remote>-E5`, angesprochen über das lokale System)
+und einem lokalen Decoder (`<local>-D1`).
+
+### 4.1 `config` – eine Einstellung ändern
+
+```jsonc
+→ {"method":"config","params":{"sysid":"<lokale sysid>","id":"<unit id>","values":{"<key>":<wert>}}}
+← {"result":{"method":"config","id":"<unit id>","response":true,"values":true}}
+← {"method":"state.update","params":{"id":"<unit id>","dataid":<n>,"data":{"values":{...}}}}   // Push an alle Abonnenten
+```
+
+- Das Frontend schickt **immer genau einen Key pro Request**, und zwar sofort bei jeder
+  Änderung. Slider (z. B. TBR) erzeugen beim Ziehen einen Request pro Zwischenwert.
+- Wie bei `state.subscribe` ist `sysid` das **lokale** System, auch bei Remote-Units.
+- `state.update` kommt nur, solange die Unit per `state.subscribe` abonniert ist. Das Delta
+  enthält geänderte `values` und ggf. geänderte Optionslisten/Limits (siehe 4.4).
+- Die Library nutzt `config` bereits (`EnableVideo`/`DisableVideo` mit `v2110NetPriEnabled`).
+  Das passt zum Decoder, beim Encoder schaltet die UI 2110-Video aber über `video`.
+
+**Typen, wie sie die UI sendet**
+
+| Typ | Keys |
+|---|---|
+| bool | `autoStart`, `vPIntraOn`, `vIENC`, `vCRFOn`, `vGOPOn`, `aFEC`, `video`, `v2110NetPriEnabled`, `a2110NetPriEnabled`, `xAck`, `xAckR`, `vAVSOn`, `vFRCOn`, `late`, `vBnoInOn`, `vBnoInTextOn`, `v2110StopNoIn`, `a2110StopNoIn` |
+| number | `vCodec`, `vColor`, `vBit`, `vCRF`, `vGOP`, `vFEC` (0–3), `vTBR`, `aMode`, `aCh`, `aTBR`, `a2110PacketTime`, `xAckRmax`, `diffRtt`, `maxRtt`, `pbuf`, `vBnoIn`, `vBnoInH`, `vBnoInX`, `vBnoInY` |
+| string (Enum) | `vModeB`, `vModeLock`, `vMode`, `v2110NetPri`, `a2110NetPri`, `ethSoMark`, `vBnoInType`, `vCard` (`"12"`, `"3"` …), `name` |
+| **string (numerischer Inhalt!)** | `v2110RTPpayload`, `a2110RTPpayload`, `v2110NetPriPort`, `a2110NetPriPort`, `a2110SDPaCh`, sowie IPs: `v2110SDPSourceIp`, `a2110SDPSourceIp`, `v2110NetPriIp`, `a2110NetPriIp` |
+
+> Textfelder (Payload ID, Port, Channels in SDP) gehen als **String** raus, obwohl
+> `state.subscribe` sie als Zahl liefert. Das erklärt die String-Ports in `systems.full`.
+> Eine Library sollte beim Lesen beides akzeptieren.
+
+### 4.2 Fehler
+
+```jsonc
+← {"error":{"code":-32603,"message":"Internal error","data":{"vModeLock":"Video Mode auto Not supported for Card 12"}}}
+← {"method":"state.update","params":{"id":"...","data":{"values":{"vModeLock":"auto"},"error":{"vModeLock":"Video Mode auto Not supported for Card 12"}}}}
+```
+
+Bei `config` ist `error.data` ein Objekt `{<key>: <meldung>}`, bei Aktionen ein String
+(`"video not running"`). Fehler werden zusätzlich als `state.update` mit `data.error` gepusht.
+
+### 4.3 Aktionen
+
+Alle mit `params: {sysid:"<lokale sysid>", id:"<unit id>"}`, Antwort `{method, id, response:true}`.
+
+| Methode | UI | Unit | Bemerkung |
+|---|---|---|---|
+| `start` | START | Enc/Dec | danach `state.update` mit `data.running:true` (bereits in der Lib) |
+| `stop` | STOP | Enc/Dec | (bereits in der Lib) |
+| `resetVstat` | Reset Stats | Enc/Dec | |
+| `resetSSRC` | Video › Reset Buffer | Enc | Fehler `"video not running"`, wenn gestoppt |
+| `flushAudio` | General › Reset Audio Buffer | Dec | Fehler `"video not running"`, wenn gestoppt |
+
+Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with Bars“.
+
+### 4.4 Abhängigkeiten / Nebenwirkungen
+
+| Änderung | Effekt im `state.update` |
+|---|---|
+| `vCodec` → 2 (H.265) | `values.vTBR` wird auf 10 begrenzt, Limits `vTBR:{vMaxBr:10}` |
+| `v2110NetPri`/`a2110NetPri` → `"none"` | `*NetPriEnabled` wird `false` |
+| `pbuf` = n | `maxRtt` = n + 100 |
+| `vCard` (Decoder) | `vModeA` ändert sich, Optionsliste `vCard` wird neu geschickt |
+| `vModeLock = "auto"` bei `vCard "12"` (2110) | Fehler, nicht unterstützt |
+
+### 4.5 Im Mitschnitt nicht vorgekommen
+
+Encoder: `name`, `receiver`, `vNoS`, Source-Input (`vCard`), Audio-Enabled, Sec-Netz (`*NetSec*`).
+Decoder: `sender`, `vBnoInText`, `vBnoInFormatOn`/`NameOn`/`SysNameOn`, `sdilevelA`,
+`use1080pNotPsf`, SDI-`vMode`.
+
+---
+
 ## Offene Punkte
 
-- **Schreib-Requests** (Ändern von Werten, Start/Stop, Profile, Trunks …) sind noch nicht
-  aufgezeichnet. Nächster Schritt: Änderungen gezielt in der UI auslösen und mitschneiden.
+- **Schreib-Requests für SRT, Netzwerk (ETH, Trunks) und System** (Name, Ports, Profile,
+  PTP/NMOS/DNS/MTU, User, Proxy) sind noch nicht mitgeschnitten.
+- Die in 4.5 genannten Encoder-/Decoder-Felder fehlen noch.
 - Welche weiteren `sys.subscribe`-IDs existieren (Profile, Ports, Proxy, Version …)?
 - Bedeutung einiger Keys ohne UI-Pendant (`vULL`, `vCCB`, `rateControl`, `oldRDP`, …).
