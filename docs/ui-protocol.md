@@ -27,6 +27,30 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 > Die Library abonniert aktuell `systems.stats`. In FW 1.8.x lädt das Frontend Stats über
 > `localStats.subscribe` + `systems.localStats*`.
 
+### 1.1 `systems.update` – Delta-Format
+
+`systems.full` liefert den kompletten Zustand, `systems.update` danach nur Änderungen
+(etwa alle 5 s, auch ohne echte Änderung wegen `sysST`, `linkTime`, `lastSeenT`).
+
+```jsonc
+{"method":"systems.update","params":{"sysid":"<lokal>","dataid":2352,"data":{
+  "local":{"dec":[{"id":"<sysid>-D6", ...geänderte Felder...}],
+           "network":{"nets":[{"id":"eth0","linkTime":"…"}]}},
+  "remote":[{"sysid":"<remote>","lastSeenT":"…"}]}}}
+```
+
+- Nur geänderte Felder werden geschickt, auch verschachtelt (`values`, `receiver.values`).
+- **Arrays sind per Schlüssel adressiert, nicht per Index:** `id` bei `enc`, `dec`,
+  `network.nets` (und vermutlich `srt`, `ndi`, `l2s`), `sysid` bei `remote`.
+- **Neues Element:** kommt vollständig, inklusive `type` (= `stateType`) und `config:true`.
+- **Gelöschtes Element:** `{"id":"…","delete":true}`. Bei Decodern kommt davor
+  `{"id":"…","enabled":false}`.
+- IDs werden nach dem Löschen wiederverwendet (`E6`/`D6` erneut vergeben).
+- `dataid` zählt pro Nachricht hoch, damit lassen sich Lücken erkennen.
+- Innerhalb **einer** Nachricht sind Typen uneinheitlich: In `enc[].values` ist
+  `v2110NetPriPort` eine Zahl, in `enc[].receiver.values` ein String. Dasselbe gilt für
+  `vHDR` und `vBitInit`.
+
 ## 2. Detail-Subscriptions (neu)
 
 Die Einstellungs-Dialoge laden ihre Daten **nicht** aus `systems.full`, sondern abonnieren
