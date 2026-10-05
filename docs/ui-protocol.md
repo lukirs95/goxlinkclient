@@ -3,8 +3,9 @@
 Reverse-Engineering-Protokoll des Web-Frontends (PrimeVue-App) eines X8-R2-Systems mit
 Firmware **1.8.4.6**. Abschnitte 1–3 stammen aus einer rein lesenden Erkundung (Dialoge
 geöffnet, Tabs gewechselt). Abschnitt 4 stammt aus einem Mitschnitt, bei dem ein Remote-Sender
-und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden.
-SRT-, Netzwerk- und System-Schreibrequests fehlen noch (siehe [Offene Punkte](#offene-punkte)).
+und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden, Abschnitt 5
+aus einem Durchlauf durch die Systemeinstellungen. SRT- und Netzwerk-Schreibrequests fehlen
+noch (siehe [Offene Punkte](#offene-punkte)).
 
 Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 
@@ -368,10 +369,51 @@ Decoder: `sender`, `vBnoInText`, `vBnoInFormatOn`/`NameOn`/`SysNameOn`, `sdileve
 
 ---
 
+## 5. Schreib-Requests (System)
+
+Systemeinstellungen haben **eigene Methoden** statt `config`. Alle haben die Form
+`params: {sysid:"<lokale sysid>", values:{...}}` (ohne `id`), Antwort
+`{method, sysid|id, response:true}`. Pro Request wird ein Key bzw. eine zusammengehörige
+Gruppe geschickt.
+
+| Methode | UI | `values` | Push |
+|---|---|---|---|
+| `configSysName` | Settings › Name | `{name}` | `systems.update` |
+| `configSysPorts` | XLink Ports › System | `{sysOn:true, sysPort:"10501"}` · Dynamic: `{sysOn:false}` | `systems.update` |
+| `configSysPorts` | XLink Ports › Data Port Range | `{portsOn:true, portsFrom:"10502", portsTo:"10539"}` · Dynamic: `{portsOn:false}` | `systems.update` |
+| `set2110` | System Config › PTPv2 | `{ptp}`, `{ptpEth}`, `{ptpDomainNumber}`, `{ptpHybrid_e2e}`, `{ptpLogAnnounceInterval}`, `{ptpAnnounceReceiptTimeout}`, `{ptpLogMinDelayReqInterval}`, `{ptpDscp}` | `sys.update configSys` |
+| `set2110` | System Config › NMOS | `{nmos}`, `{nmosEth}` (weitere NMOS-Keys vermutlich gleich) | `sys.update configSys` |
+| `dnsSys` | System Config › DNS & MTU | `{dnsStatic}`, `{dnsStaticIp1}`, `{dnsStaticIp2}` | `sys.update configSys` |
+| `setSystemMTU` | System Config › DNS & MTU | `{mtuTrunk}` (number) | `sys.update configSys` |
+| `manAddPeer` | System Config › Add System | `{systemId:"<remote sysid>"}` | – |
+
+**`sys.update`-Push** (solange `sys.subscribe configSys` aktiv ist):
+
+```jsonc
+← {"method":"sys.update","params":{"sysid":"local","id":"configSys","dataid":<n>,
+    "data":{"ptp":{"ptpDomainNumber":100}, "sysVer":{...}}}}
+```
+
+Das Delta ist wie bei `sys.subscribe` gruppiert (`ptp`, `nmos`, `dns`, `mtuTrunk`) und
+enthält jedes Mal zusätzlich `sysVer` (u. a. die Peer-Liste).
+
+**Typen:** Wie bei `config` gehen Textfelder als **String** raus (`ptpDomainNumber:"100"`,
+`ptpDscp:"47"`, `ptpLogAnnounceInterval:"-2"`, `sysPort:"10502"`). `sys.update` meldet sie als
+Zahl zurück. Bei `configSysPorts` bleibt ein nicht bearbeitetes Feld eine Zahl
+(`portsTo:10539`) und wird erst nach dem Bearbeiten zum String – die Typen sind also
+**gemischt**. `setSystemMTU` schickt eine Zahl.
+
+Ohne Request blieben in diesem Durchlauf: Profile Settings, User Settings, Admin Proxy,
+Version und License. Entweder wurde dort nichts geändert, oder diese Dialoge laufen über
+HTTP (vor diesem Durchlauf nicht mitgeschnitten).
+
+---
+
 ## Offene Punkte
 
-- **Schreib-Requests für SRT, Netzwerk (ETH, Trunks) und System** (Name, Ports, Profile,
-  PTP/NMOS/DNS/MTU, User, Proxy) sind noch nicht mitgeschnitten.
+- **Schreib-Requests für SRT und Netzwerk** (ETH, Trunks) sind noch nicht mitgeschnitten.
+- System: Profile, User, Admin Proxy, Version/Update, License, weitere NMOS-Felder
+  (Domain, Registry, Labels) sowie PTP-Werte ohne UI.
 - Die in 4.5 genannten Encoder-/Decoder-Felder fehlen noch.
 - Welche weiteren `sys.subscribe`-IDs existieren (Profile, Ports, Proxy, Version …)?
 - Bedeutung einiger Keys ohne UI-Pendant (`vULL`, `vCCB`, `rateControl`, `oldRDP`, …).
