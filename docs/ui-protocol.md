@@ -4,7 +4,7 @@ Reverse-Engineering-Protokoll des Web-Frontends (PrimeVue-App) eines X8-R2-Syste
 Firmware **1.8.4.6**. Abschnitte 1–3 stammen aus einer rein lesenden Erkundung (Dialoge
 geöffnet, Tabs gewechselt). Abschnitt 4 stammt aus einem Mitschnitt, bei dem ein Remote-Sender
 und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden, Abschnitt 5
-aus einem Durchlauf durch die Systemeinstellungen, SRT in 4.5. Netzwerk-Schreibrequests fehlen
+aus einem Durchlauf durch die Systemeinstellungen, SRT in 4.5, Netzwerk (`configEth`) in 5. IP-Einstellungen und Trunks fehlen
 noch (siehe [Offene Punkte](#offene-punkte)).
 
 Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
@@ -238,7 +238,7 @@ Tabs: **General · Destination** – wie SRT Sender (`mode`, `address`, `port` a
 | Type, MAC | read-only |
 | Enabled | `enabled` |
 | Admin Only ETH | `adminOnly` |
-| Default External / Lan (NDI) / Backup External | `default`, `defaultLan` bzw. `ndi` (unklar), `backup` *(nur Nicht-Admin-ETHs)* |
+| Default External / Lan (NDI) / Backup External | `default`, `defaultLan` *(per Mitschnitt bestätigt)*, `backup` *(nur Nicht-Admin-ETHs)* |
 | DHCP / Static | `dhcp` |
 | IP, Gate, Mask, Dns 1/2 (per „Change“) | `ip`, `gate`, `mask`, `dns1`, `dns2` |
 | WebAdmin | `admin` |
@@ -247,6 +247,19 @@ Tabs: **General · Destination** – wie SRT Sender (`mode`, `address`, `port` a
 | NMOS | `nmos` *(neu)* |
 
 Sidebar-Status pro ETH: Link (Up/Speed), Link Up seit, Internet, Gate Ping, Static, IP.
+
+**SMPTE 2110 – Hardware-Einschränkung**
+
+| Hardware | 2110-fähige ETHs |
+|---|---|
+| X8 (z. B. `configSys.type = "X8-R2"`) | nur **eth6** und **eth7** |
+| X4 | nur **eth2** und **eth3** |
+
+Das Gerät meldet das selbst: `sys.subscribe configSys` liefert `eth:[{id, name, st2110}]`, und
+`state.subscribe` die Optionsliste `av2110Net` (nur `none` + 2110-fähige ETHs). Beide Listen
+enthalten nur **aktivierte** ETHs. Ein deaktiviertes eth7 fehlt also, obwohl es 2110 könnte.
+Eine Library sollte `v2110NetPri`/`a2110NetPri`, `nmosEth` und `ptpEth` gegen diese Listen
+prüfen statt ETH-Namen fest zu verdrahten.
 
 ### 3.6 Netzwerk › XLink Trunk
 
@@ -350,9 +363,10 @@ Alle mit `params: {sysid:"<lokale sysid>", id:"<unit id>"}`, Antwort `{method, i
 | `resetSSRC` | Video › Reset Buffer | Enc | Fehler `"video not running"`, wenn gestoppt |
 | `flushAudio` | General › Reset Audio Buffer | Dec | Fehler `"video not running"`, wenn gestoppt |
 | `deleteVideo` | Unit löschen | Enc/Dec/SRT | Antwort `{method, sysid, response:true}`; funktioniert für `-E`, `-D`, `-srtE`, `-srtD` |
+| `newVideo` | Video › Senders/Receivers › Add New | – | **ohne `id`**: `params:{sysid, values:{type}}` mit `type` 1 = XLink-Encoder, 2 = XLink-Decoder (vermutl. wie `stateType`, also 8/9 für SRT). Antwort `{method, sysid, response:true}` **ohne ID der neuen Unit** – die kommt nur über `systems.update` |
 
-Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with Bars“, das Anlegen
-von Units („Add New“).
+Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with Bars“, „Add New“
+für SRT und NDI.
 
 ### 4.4 Abhängigkeiten / Nebenwirkungen
 
@@ -405,6 +419,7 @@ Gruppe geschickt.
 | `dnsSys` | System Config › DNS & MTU | `{dnsStatic}`, `{dnsStaticIp1}`, `{dnsStaticIp2}` | `sys.update configSys` |
 | `setSystemMTU` | System Config › DNS & MTU | `{mtuTrunk}` (number) | `sys.update configSys` |
 | `manAddPeer` | System Config › Add System | `{systemId:"<remote sysid>"}` | – |
+| `configEth` | Network › Eth › Settings | `{eth:"eth3", <key>:<wert>}` – ein Key pro Request: `enabled`, `default` (Default External), `defaultLan` (Lan (NDI)), `backup` (Backup External), `admin` (WebAdmin), `adminSslOnly`, `igmp`, `nmos` (alle bool) | vermutl. `systems.update` (`network.nets[]`) |
 | `manIpPeer` | Remote System › Manual IP Connect | `{peer:"<remote sysid>", manIp:"<ip>", manIpSec:"<ip>", manPort:"10501", manAutCon:false}` – immer der komplette Satz; Löschen = `manIp/manIpSec/manPort:""`, `manAutCon:false` | vermutl. `systems.update` (Peer-Felder `manIp`, `manIpSec`, `manPort`, `manAutCon`) |
 
 **`sys.update`-Push** (solange `sys.subscribe configSys` aktiv ist):
@@ -416,6 +431,11 @@ Gruppe geschickt.
 
 Das Delta ist wie bei `sys.subscribe` gruppiert (`ptp`, `nmos`, `dns`, `mtuTrunk`) und
 enthält jedes Mal zusätzlich `sysVer` (u. a. die Peer-Liste).
+
+**`configEth` mit `response:false`:** `{eth:"eth3", defaultLan:false}` wurde mit
+`response:false` abgelehnt, ohne JSON-RPC-Error (kurz zuvor war `defaultLan` auf eth2 gesetzt
+worden). Clients müssen also neben `error` auch `result.response` prüfen. Die Library tut das
+für `start`/`stop`/`config` bereits.
 
 **Typen:** Wie bei `config` gehen Textfelder als **String** raus (`ptpDomainNumber:"100"`,
 `ptpDscp:"47"`, `ptpLogAnnounceInterval:"-2"`, `sysPort:"10502"`). `sys.update` meldet sie als
@@ -431,7 +451,7 @@ HTTP (vor diesem Durchlauf nicht mitgeschnitten).
 
 ## Offene Punkte
 
-- **Schreib-Requests für Netzwerk** (ETH, Trunks) und das Anlegen von Units ("Add New") sind noch nicht mitgeschnitten.
+- **Netzwerk:** ETH-IP/DHCP/DNS-Änderungen (vermutlich ebenfalls `configEth`) und XLink-Trunks (`l2s`) sind noch nicht mitgeschnitten; ebenso „Add New“ für SRT/NDI.
 - System: Profile, User, Admin Proxy, Version/Update, License, weitere NMOS-Felder
   (Domain, Registry, Labels) sowie PTP-Werte ohne UI.
 - Die in 4.6 genannten Encoder-/Decoder-Felder fehlen noch.
