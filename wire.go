@@ -24,21 +24,23 @@ type wireData struct {
 }
 
 type wireLocal struct {
-	SysID       string                               `json:"sysid"`
-	Name        string                               `json:"name"`
-	SysVer      string                               `json:"sysVer"`
-	SysBeta     flexBool                             `json:"sysBeta"`
-	ST2110      flexBool                             `json:"st2110"`
-	NeedReboot  flexBool                             `json:"needReboot"`
-	SysST       flexTime                             `json:"sysST"`
-	Profile     string                               `json:"profile"`
-	ProfileName string                               `json:"profileName"`
-	Ports       wirePorts                            `json:"ports"`
-	MTUTrunk    flexInt                              `json:"mtuTrunk"`
-	Enc         keyedList[wireEncoder, *wireEncoder] `json:"enc"`
-	Dec         keyedList[wireDecoder, *wireDecoder] `json:"dec"`
-	L2S         keyedList[wireTrunk, *wireTrunk]     `json:"l2s"`
-	Network     wireNetwork                          `json:"network"`
+	SysID       string                                   `json:"sysid"`
+	Name        string                                   `json:"name"`
+	SysVer      string                                   `json:"sysVer"`
+	SysBeta     flexBool                                 `json:"sysBeta"`
+	ST2110      flexBool                                 `json:"st2110"`
+	NeedReboot  flexBool                                 `json:"needReboot"`
+	SysST       flexTime                                 `json:"sysST"`
+	Profile     string                                   `json:"profile"`
+	ProfileName string                                   `json:"profileName"`
+	Ports       wirePorts                                `json:"ports"`
+	MTUTrunk    flexInt                                  `json:"mtuTrunk"`
+	Enc         keyedList[wireEncoder, *wireEncoder]     `json:"enc"`
+	Dec         keyedList[wireDecoder, *wireDecoder]     `json:"dec"`
+	SRT         keyedList[wireMediaUnit, *wireMediaUnit] `json:"srt"`
+	NDI         keyedList[wireMediaUnit, *wireMediaUnit] `json:"ndi"`
+	L2S         keyedList[wireTrunk, *wireTrunk]         `json:"l2s"`
+	Network     wireNetwork                              `json:"network"`
 }
 
 type wirePorts struct {
@@ -194,6 +196,132 @@ func (d *wireDecoder) toDecoder(c *collector) Decoder {
 	dec.Sender = d.Sender.toLinked(sc, false)
 	c.merge(sc)
 	return dec
+}
+
+// wireMediaUnit is an element of the "srt" and "ndi" arrays. Each array holds
+// encoders and decoders alike; they are told apart by the prefix of their ID,
+// which unlike "type" is present in every delta.
+type wireMediaUnit struct {
+	ID       string              `json:"id"`
+	Name     string              `json:"name"`
+	Enabled  flexBool            `json:"enabled"`
+	RunError string              `json:"runError"`
+	Values   wireMediaUnitValues `json:"values"`
+}
+
+func (u *wireMediaUnit) key() string { return u.ID }
+
+// wireMediaUnitValues holds the keys of SRT and NDI units. In systems.full the
+// SRT keys are prefixed with "srt" (and the typo in srtEncrytion is the
+// device's), while config and state.subscribe use the bare names.
+type wireMediaUnitValues struct {
+	VIn           string   `json:"vIn"`
+	VOut          string   `json:"vOut"`
+	VCard         flexInt  `json:"vCard"`
+	VTBR          flexInt  `json:"vTBR"`
+	SRTMode       flexInt  `json:"srtMode"`
+	SRTAddress    string   `json:"srtAddress"`
+	SRTPort       flexInt  `json:"srtPort"`
+	SRTLocalPort  flexInt  `json:"srtLocalPort"`
+	SRTEncryption flexBool `json:"srtEncrytion"`
+	NDISource     string   `json:"ndiSource"`
+	NDISourceName string   `json:"ndiSourceName"`
+	NDISourceCon  flexBool `json:"ndiSourceCon"`
+	VFRCOn        flexBool `json:"vFRCOn"`
+	Running       flexBool `json:"running"`
+	StartT        flexTime `json:"startT"`
+}
+
+func (u *wireMediaUnit) srtConnection(c *collector) SRTConnection {
+	v := &u.Values
+	return SRTConnection{
+		Mode:       SRTMode(c.int("srtMode", &v.SRTMode)),
+		Address:    v.SRTAddress,
+		Port:       c.int("srtPort", &v.SRTPort),
+		LocalPort:  c.int("srtLocalPort", &v.SRTLocalPort),
+		Encryption: c.bool("srtEncrytion", &v.SRTEncryption),
+	}
+}
+
+func (u *wireMediaUnit) toSRTEncoder(c *collector) SRTEncoder {
+	v := &u.Values
+	vc := c.scope("values")
+	enc := SRTEncoder{
+		ID:        UnitID(u.ID),
+		Name:      u.Name,
+		Enabled:   c.bool("enabled", &u.Enabled),
+		Running:   vc.bool("running", &v.Running),
+		StartedAt: vc.time("startT", &v.StartT),
+		Error:     u.RunError,
+		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		VideoIn:   Signal(v.VIn),
+		Bitrate:   vc.int("vTBR", &v.VTBR),
+		SRT:       u.srtConnection(vc),
+	}
+	c.merge(vc)
+	return enc
+}
+
+func (u *wireMediaUnit) toSRTDecoder(c *collector) SRTDecoder {
+	v := &u.Values
+	vc := c.scope("values")
+	dec := SRTDecoder{
+		ID:        UnitID(u.ID),
+		Name:      u.Name,
+		Enabled:   c.bool("enabled", &u.Enabled),
+		Running:   vc.bool("running", &v.Running),
+		StartedAt: vc.time("startT", &v.StartT),
+		Error:     u.RunError,
+		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		VideoIn:   Signal(v.VIn),
+		VideoOut:  Signal(v.VOut),
+		SRT:       u.srtConnection(vc),
+	}
+	c.merge(vc)
+	return dec
+}
+
+func (u *wireMediaUnit) toNDIEncoder(c *collector) NDIEncoder {
+	v := &u.Values
+	vc := c.scope("values")
+	enc := NDIEncoder{
+		ID:        UnitID(u.ID),
+		Name:      u.Name,
+		Enabled:   c.bool("enabled", &u.Enabled),
+		Running:   vc.bool("running", &v.Running),
+		StartedAt: vc.time("startT", &v.StartT),
+		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		VideoIn:   Signal(v.VIn),
+		VideoOut:  Signal(v.VOut),
+	}
+	c.merge(vc)
+	return enc
+}
+
+func (u *wireMediaUnit) toNDIDecoder(c *collector) NDIDecoder {
+	v := &u.Values
+	vc := c.scope("values")
+	dec := NDIDecoder{
+		ID:              UnitID(u.ID),
+		Name:            u.Name,
+		Enabled:         c.bool("enabled", &u.Enabled),
+		Running:         vc.bool("running", &v.Running),
+		StartedAt:       vc.time("startT", &v.StartT),
+		Card:            VideoCard(vc.int("vCard", &v.VCard)),
+		VideoIn:         Signal(v.VIn),
+		VideoOut:        Signal(v.VOut),
+		Source:          v.NDISource,
+		SourceName:      v.NDISourceName,
+		SourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
+		FPSSync:         vc.bool("vFRCOn", &v.VFRCOn),
+	}
+	c.merge(vc)
+	return dec
+}
+
+// ofType matches media units by the type encoded in their ID.
+func ofType(t UnitType) func(*wireMediaUnit) bool {
+	return func(u *wireMediaUnit) bool { return UnitID(u.ID).Type() == t }
 }
 
 // wireLinked is the counterpart embedded in a local encoder ("receiver") or
@@ -420,10 +548,19 @@ func (p *wirePeer) toPeer(c *collector) Peer {
 // convertList converts every element of a keyed list, scoping issues by list
 // name and element key.
 func convertList[T any, P keyedElement[T], R any](c *collector, name string, l *keyedList[T, P], convert func(P, *collector) R) []R {
+	return convertWhere(c, name, l, nil, convert)
+}
+
+// convertWhere converts the elements of a keyed list that match, or all
+// elements if match is nil. List level issues are reported by the first call.
+func convertWhere[T any, P keyedElement[T], R any](c *collector, name string, l *keyedList[T, P], match func(P) bool, convert func(P, *collector) R) []R {
 	lc := c.scope(name)
 	lc.add(l.takeIssues()...)
 	out := make([]R, 0, len(l.items))
 	for _, item := range l.items {
+		if match != nil && !match(P(item)) {
+			continue
+		}
 		ec := lc.scope(P(item).key())
 		out = append(out, convert(item, ec))
 		lc.merge(ec)
@@ -457,6 +594,10 @@ func (p *wireParams) toSystem(c *collector) System {
 	}
 	sys.Encoders = convertList(c, "enc", &l.Enc, (*wireEncoder).toEncoder)
 	sys.Decoders = convertList(c, "dec", &l.Dec, (*wireDecoder).toDecoder)
+	sys.SRTEncoders = convertWhere(c, "srt", &l.SRT, ofType(UnitSRTEncoder), (*wireMediaUnit).toSRTEncoder)
+	sys.SRTDecoders = convertWhere(c, "srt", &l.SRT, ofType(UnitSRTDecoder), (*wireMediaUnit).toSRTDecoder)
+	sys.NDIEncoders = convertWhere(c, "ndi", &l.NDI, ofType(UnitNDIEncoder), (*wireMediaUnit).toNDIEncoder)
+	sys.NDIDecoders = convertWhere(c, "ndi", &l.NDI, ofType(UnitNDIDecoder), (*wireMediaUnit).toNDIDecoder)
 	sys.Trunks = convertList(c, "l2s", &l.L2S, (*wireTrunk).toTrunk)
 	sys.Interfaces = convertList(c, "nets", &l.Network.Nets, (*wireInterface).toInterface)
 	sys.Peers = convertList(c, "remote", &p.Data.Remote, (*wirePeer).toPeer)

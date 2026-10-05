@@ -20,10 +20,14 @@ type System struct {
 	Profile Profile
 	Ports   Ports
 	// TrunkMTU is the default MTU of layer 2 trunks.
-	TrunkMTU   int
-	Encoders   []Encoder
-	Decoders   []Decoder
-	Interfaces []Interface
+	TrunkMTU    int
+	Encoders    []Encoder
+	Decoders    []Decoder
+	SRTEncoders []SRTEncoder
+	SRTDecoders []SRTDecoder
+	NDIEncoders []NDIEncoder
+	NDIDecoders []NDIDecoder
+	Interfaces  []Interface
 	Trunks     []Trunk
 	// Peers are the configured remote systems.
 	Peers []Peer
@@ -92,6 +96,26 @@ func (s System) Encoder(id UnitID) (Encoder, bool) {
 // Decoder returns the local decoder with the given ID.
 func (s System) Decoder(id UnitID) (Decoder, bool) {
 	return find(s.Decoders, func(d Decoder) bool { return d.ID == id })
+}
+
+// SRTEncoder returns the local SRT encoder with the given ID.
+func (s System) SRTEncoder(id UnitID) (SRTEncoder, bool) {
+	return find(s.SRTEncoders, func(e SRTEncoder) bool { return e.ID == id })
+}
+
+// SRTDecoder returns the local SRT decoder with the given ID.
+func (s System) SRTDecoder(id UnitID) (SRTDecoder, bool) {
+	return find(s.SRTDecoders, func(d SRTDecoder) bool { return d.ID == id })
+}
+
+// NDIEncoder returns the local NDI encoder with the given ID.
+func (s System) NDIEncoder(id UnitID) (NDIEncoder, bool) {
+	return find(s.NDIEncoders, func(e NDIEncoder) bool { return e.ID == id })
+}
+
+// NDIDecoder returns the local NDI decoder with the given ID.
+func (s System) NDIDecoder(id UnitID) (NDIDecoder, bool) {
+	return find(s.NDIDecoders, func(d NDIDecoder) bool { return d.ID == id })
 }
 
 // Interface returns the network interface with the given name, e.g. "eth0".

@@ -47,6 +47,15 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   `{"id":"…","enabled":false}`.
 - IDs werden nach dem Löschen wiederverwendet (`E6`/`D6` erneut vergeben).
 - `dataid` zählt pro Nachricht hoch, damit lassen sich Lücken erkennen.
+- **SRT und NDI:** `local.srt[]` bzw. `local.ndi[]` enthalten Sender **und** Empfänger
+  gemischt. Unterscheidbar sind sie über `type` (8/9 bzw. 3/4) oder das ID-Präfix
+  (`srtE`/`srtD`, `NdiE`/`NdiD`); nur das Präfix steht auch in Teil-Deltas. In
+  `systems.full` heißen die SRT-Felder anders als bei `config`/`state.subscribe`:
+  `srtMode`, `srtAddress`, `srtPort` (String), `srtLocalPort` (String), `srtEncrytion`
+  (sic); dazu kommt `runError` auf Element-Ebene. NDI-Empfänger melden `ndiSource`,
+  `ndiSourceName` und `ndiSourceCon`.
+- `vTBR` (Bitrate) steht in `systems.full` als Gleitkommazahl (`25.0`), beim Schreiben als
+  Ganzzahl.
 - Innerhalb **einer** Nachricht sind Typen uneinheitlich: In `enc[].values` ist
   `v2110NetPriPort` eine Zahl, in `enc[].receiver.values` ein String. Dasselbe gilt für
   `vHDR` und `vBitInit`.

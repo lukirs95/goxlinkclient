@@ -3,6 +3,7 @@ package xlinkclient
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -242,6 +243,84 @@ func TestUpdateAddAndDelete(t *testing.T) {
 	after.LinkSince = before.LinkSince
 	if after != before {
 		t.Errorf("heartbeat changed more than LinkSince:\nbefore %+v\nafter  %+v", before, after)
+	}
+}
+
+func TestUpdateSRTAndNDI(t *testing.T) {
+	st := loadState(t, "systems_full_1.8.json")
+	if sys := mustSnapshot(t, st); len(sys.SRTEncoders)+len(sys.SRTDecoders)+len(sys.NDIEncoders)+len(sys.NDIDecoders) != 0 {
+		t.Fatal("fixture unexpectedly contains SRT or NDI units")
+	}
+
+	var updates []json.RawMessage
+	if err := json.Unmarshal(readFixture(t, "systems_update_srt_ndi_1.8.json"), &updates); err != nil {
+		t.Fatal(err)
+	}
+	if len(updates) != 8 {
+		t.Fatalf("fixture has %d updates, want 8", len(updates))
+	}
+
+	// The first four updates add an NDI encoder and decoder and an SRT
+	// encoder and decoder. srt[] and ndi[] mix both directions.
+	for _, u := range updates[:4] {
+		mustApplyUpdate(t, st, u)
+	}
+	sys := mustSnapshot(t, st)
+
+	srtEnc, ok := sys.SRTEncoder("X8A1001-srtE1")
+	if !ok {
+		t.Fatal("SRT encoder X8A1001-srtE1 not found")
+	}
+	// srtPort and srtLocalPort are strings on the wire.
+	wantSRT := SRTConnection{Mode: SRTListener, Port: 7980, LocalPort: 7980}
+	if srtEnc.SRT != wantSRT || srtEnc.Bitrate != 10 || !srtEnc.Enabled || srtEnc.Error != "" {
+		t.Errorf("SRT encoder = %+v", srtEnc)
+	}
+
+	srtDec, ok := sys.SRTDecoder("X8A1001-srtD1")
+	if !ok {
+		t.Fatal("SRT decoder X8A1001-srtD1 not found")
+	}
+	if srtDec.SRT.Mode != SRTCaller || srtDec.SRT.Port != 7980 || srtDec.VideoOut != NoSignal {
+		t.Errorf("SRT decoder = %+v", srtDec)
+	}
+
+	if _, ok := sys.NDIEncoder("X8A1001-NdiE6"); !ok {
+		t.Error("NDI encoder X8A1001-NdiE6 not found")
+	}
+	ndiDec, ok := sys.NDIDecoder("X8A1001-NdiD6")
+	if !ok {
+		t.Fatal("NDI decoder X8A1001-NdiD6 not found")
+	}
+	if ndiDec.Source != "" || ndiDec.SourceConnected || ndiDec.FPSSync {
+		t.Errorf("NDI decoder = %+v", ndiDec)
+	}
+	if len(sys.SRTEncoders) != 1 || len(sys.SRTDecoders) != 1 || len(sys.NDIEncoders) != 1 || len(sys.NDIDecoders) != 1 {
+		t.Errorf("counts srtE=%d srtD=%d ndiE=%d ndiD=%d, want 1 each",
+			len(sys.SRTEncoders), len(sys.SRTDecoders), len(sys.NDIEncoders), len(sys.NDIDecoders))
+	}
+
+	// A running state change only carries the changed field.
+	partial := []byte(`{"dataid":774,"data":{"local":{"srt":[{"id":"X8A1001-srtE1","values":{"running":true}}]}}}`)
+	mustApplyUpdate(t, st, partial)
+	if enc, _ := mustSnapshot(t, st).SRTEncoder("X8A1001-srtE1"); !enc.Running || enc.SRT != wantSRT {
+		t.Errorf("after running update: %+v", enc)
+	}
+
+	// The remaining updates delete all four units again. Their dataids
+	// continue after the partial update above.
+	for i, u := range updates[4:] {
+		var p map[string]json.RawMessage
+		if err := json.Unmarshal(u, &p); err != nil {
+			t.Fatal(err)
+		}
+		p["dataid"] = json.RawMessage(fmt.Sprint(775 + i))
+		u, _ = json.Marshal(p)
+		mustApplyUpdate(t, st, u)
+	}
+	sys = mustSnapshot(t, st)
+	if n := len(sys.SRTEncoders) + len(sys.SRTDecoders) + len(sys.NDIEncoders) + len(sys.NDIDecoders); n != 0 {
+		t.Errorf("%d SRT/NDI units left after delete, want 0", n)
 	}
 }
 

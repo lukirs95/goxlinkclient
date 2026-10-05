@@ -81,6 +81,78 @@ type Decoder struct {
 	Sender LinkedUnit
 }
 
+// SRTEncoder is an SRT sender of the local system.
+type SRTEncoder struct {
+	ID        UnitID
+	Name      string
+	Enabled   bool
+	Running   bool
+	StartedAt time.Time
+	// Error is the last error reported while running, or "".
+	Error   string
+	Card    VideoCard
+	VideoIn Signal
+	// Bitrate is the video bitrate in Mbps.
+	Bitrate int
+	SRT     SRTConnection
+}
+
+// SRTDecoder is an SRT receiver of the local system.
+type SRTDecoder struct {
+	ID        UnitID
+	Name      string
+	Enabled   bool
+	Running   bool
+	StartedAt time.Time
+	// Error is the last error reported while running, or "".
+	Error    string
+	Card     VideoCard
+	VideoIn  Signal
+	VideoOut Signal
+	SRT      SRTConnection
+}
+
+// SRTConnection describes how an SRT unit connects.
+type SRTConnection struct {
+	Mode SRTMode
+	// Address and Port are the remote endpoint in caller mode.
+	Address string
+	Port    int
+	// LocalPort is the port to listen on in listener mode, or the source port
+	// in caller mode.
+	LocalPort  int
+	Encryption bool
+}
+
+// NDIEncoder converts an SDI input of the local system to an NDI stream.
+type NDIEncoder struct {
+	ID        UnitID
+	Name      string
+	Enabled   bool
+	Running   bool
+	StartedAt time.Time
+	Card      VideoCard
+	VideoIn   Signal
+	VideoOut  Signal
+}
+
+// NDIDecoder outputs an NDI stream on an SDI output of the local system.
+type NDIDecoder struct {
+	ID        UnitID
+	Name      string
+	Enabled   bool
+	Running   bool
+	StartedAt time.Time
+	Card      VideoCard
+	VideoIn   Signal
+	VideoOut  Signal
+	// Source is the selected NDI source and SourceName its display name.
+	Source          string
+	SourceName      string
+	SourceConnected bool
+	FPSSync         bool
+}
+
 // LinkedUnit is the counterpart of a local unit as reported by the local
 // system: the receiver of an encoder or the sender of a decoder.
 type LinkedUnit struct {
