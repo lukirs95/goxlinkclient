@@ -60,8 +60,13 @@ func main() {
 					enc.ID, enc.Name, enc.Running, enc.VideoIn, enc.Receiver.ID)
 			}
 		case s := <-stats:
-			if sys := s.Stats.SystemStats(); sys != nil {
-				fmt.Printf("%s: CPU %d°C\n", s.Client.SystemID(), sys.CPUTemp())
+			fmt.Printf("%s: CPU %d%% %d°C, PTP sync %t\n",
+				s.Stats.System, s.Stats.Health.CPU, s.Stats.Health.CPUTemp, s.Stats.Health.PTPSync)
+			for _, dec := range s.Stats.Decoders {
+				if dec.Running {
+					fmt.Printf("  %s %d fps, %.1f Mbps, RTT %v, health %.0f%%\n",
+						dec.ID, dec.OutputFPS, dec.RX, dec.XLink.RTT, dec.Receive.Health)
+				}
 			}
 		}
 	}

@@ -60,6 +60,31 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   `v2110NetPriPort` eine Zahl, in `enc[].receiver.values` ein String. Dasselbe gilt für
   `vHDR` und `vBitInit`.
 
+### 1.2 Statistiken
+
+| | `systems.localStats` | `systems.stats` |
+|---|---|---|
+| Abo | `localStats.subscribe {sysid:"local", batch, max}` | keins, kommt immer |
+| Takt / Größe | ca. 2 s / ~10 KB | ca. 2,5 s / ~13 KB |
+| Aufbau | `{sysid, dataid, time, data:[{id, type, data}]}` | `{sysid, dataid, data:{time, local:[…], remote:[{sysid, data:[…]}]}}` |
+| System (`type 0`, id = sysid) | **ohne `data`** | `ptp`, `ptpSync`, `ptpSyncLocal`, `nmos`, `osUpTime` (s), `cpu` (%), `cpuTemp`, `sysTemp`, `vTotRun`, `vLic`, `vLicDec`, `vLicUsed`, `vLicUsedDec` |
+| ETHs (`type 0`, `ethN`) | nur aktive: `rx`, `tx` (Mbps) | alle |
+| Encoder (`type 1`) | `running`, `upTime`, `vInFps`, `xLink{rtt,p2p,resent}` + `receiver{…Decoder-Stats…}` | `xLink` mit ARQ-Details, `aInCh`, `statsTime` |
+| Decoder (`type 2`) | `running`, `upTime`, `vOutFps`, `mbps{rx,tx}`, `xLink`, `vDstats`, `aDstats`, `vPbuffer`, `vRstats` (Jitter, Late, Loss, Health) + `sender{…}` | weniger Details |
+| Remote-Systeme | – | System-Werte wie oben plus `rtt` (**String**, z. B. `"0.201"`) |
+
+- **History:** Nach `localStats.subscribe` sendet das Gerät immer zuerst
+  `systems.localStatsHistory`. Mit den Werten der UI (`batch:60, max:600`) kommen zehn
+  Blöcke zu je ~515–612 KB, `batch:0, max:0` verhält sich genauso (Standardwerte).
+  Mit `batch:1, max:1` kommt nur ein Block von ~9 KB.
+- Abos **stapeln sich pro Verbindung**: Ein zweites `localStats.subscribe` verdoppelt die
+  Live-Nachrichten.
+- **`vRstats` wechselt den Typ:** im Leerlauf Zahlen (`0`, `100`), im Betrieb Strings
+  (`"1300"`, `"100.000"`, `"278"`).
+- `rtt` ist in Millisekunden (`0.18`), `jit_*_us` in Mikrosekunden, `delay` und
+  `vPbuffer` in Millisekunden.
+- SRT- und NDI-Units kamen in den Mitschnitten nicht vor.
+
 ## 2. Detail-Subscriptions (neu)
 
 Die Einstellungs-Dialoge laden ihre Daten **nicht** aus `systems.full`, sondern abonnieren

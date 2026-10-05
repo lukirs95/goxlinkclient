@@ -33,9 +33,11 @@ const (
 	methodStartTrunk     jsonrpc.Method = "startL2S"
 	methodStopTrunk      jsonrpc.Method = "stopL2S"
 	methodDeleteTrunk    jsonrpc.Method = "deleteL2S"
+	methodLocalStats     jsonrpc.Method = "localStats.subscribe"
 	notifySystemsFull    jsonrpc.Method = "systems.full"
 	notifySystemsUpdate  jsonrpc.Method = "systems.update"
 	notifySystemsStats   jsonrpc.Method = "systems.stats"
+	notifyLocalStats     jsonrpc.Method = "systems.localStats"
 	notifyAuthentication jsonrpc.Method = "notify.auth"
 )
 

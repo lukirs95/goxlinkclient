@@ -1,0 +1,805 @@
+{
+ "sysid": "X8A1001",
+ "dataid": 7614,
+ "time": "2026-10-05 13:12:01 +0000",
+ "data": [
+  {
+   "id": "X8A1001",
+   "type": 0
+  },
+  {
+   "id": "eth0",
+   "type": 0,
+   "data": {
+    "rx": 0,
+    "tx": 0
+   }
+  },
+  {
+   "id": "eth1",
+   "type": 0,
+   "data": {
+    "rx": 0,
+    "tx": 0
+   }
+  },
+  {
+   "id": "eth2",
+   "type": 0,
+   "data": {
+    "rx": 11.64,
+    "tx": 0.5
+   }
+  },
+  {
+   "id": "eth6",
+   "type": 0,
+   "data": {
+    "rx": 0,
+    "tx": 0
+   }
+  },
+  {
+   "id": "X8A1001-E1",
+   "type": 1,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0
+    },
+    "vInFps": 0,
+    "vInT": 0,
+    "receiver": {
+     "id": "X4A1004-D1",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "drop": 0
+     },
+     "vDstats": {
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 0,
+      "min": 0
+     },
+     "vRstats": {
+      "late": 0,
+      "discarded_late": 0,
+      "drops_empty": 0,
+      "late_cum": 0,
+      "discarded_late_cum": 0,
+      "drops_empty_cum": 0,
+      "max_late_ms": 0,
+      "late_min_ms": 0,
+      "late_avg_ms": 0,
+      "late_n": 0,
+      "used_max_ms": 0,
+      "head_min_ms": 0,
+      "head_pct": 100,
+      "jit_min_us": 0,
+      "jit_avg_us": 0,
+      "jit_max_us": 0,
+      "jit_n": 0,
+      "jit_over": 0,
+      "ts_diff_max_us": 0,
+      "received": 0,
+      "expected": 0,
+      "stat": 100,
+      "statTot": 100,
+      "loss": 0,
+      "maxloss": 0,
+      "delay": 0
+     },
+     "vOutFps": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-D1",
+   "type": 2,
+   "data": {
+    "xLink": {
+     "rtt": 0.18,
+     "p2p": 369041,
+     "resent": 0,
+     "resentDrop": 0,
+     "drop": 0
+    },
+    "vDstats": {
+     "drop": 0,
+     "corr": 11,
+     "missing": 0,
+     "fecCorrected": 0,
+     "fecnok": 11
+    },
+    "aDstats": {
+     "drop": 2,
+     "miss": 0,
+     "unsync": 1
+    },
+    "vRstats": {
+     "rtp": "playout_buf",
+     "SSRC": "1f6f1dd5",
+     "late": "0",
+     "discarded_late": "0",
+     "drops_empty": "0",
+     "late_cum": "0",
+     "discarded_late_cum": "0",
+     "drops_empty_cum": "0",
+     "max_late_ms": "0.000",
+     "late_min_ms": "0.000",
+     "late_avg_ms": "0.000",
+     "late_n": "0",
+     "used_max_ms": "0.000",
+     "head_min_ms": "100.000",
+     "head_pct": "100.0",
+     "jit_min_us": "382",
+     "jit_avg_us": "402",
+     "jit_max_us": "455",
+     "jit_n": "51",
+     "jit_over": "0",
+     "ts_diff_max_us": "40341",
+     "received": "1300",
+     "expected": "1300",
+     "stat": "100.00",
+     "statTot": "100.00",
+     "loss": "0",
+     "maxloss": "0",
+     "delay": "100"
+    },
+    "vPbuffer": {
+     "warning": false,
+     "buffer": 100,
+     "min": 0
+    },
+    "vOutFps": 25,
+    "mbps": {
+     "tx": 0,
+     "rx": 10.13
+    },
+    "sender": {
+     "id": "X8A1008-E5",
+     "xLink": {
+      "rtt": 0.14,
+      "p2p": 369761,
+      "resent": 0
+     },
+     "vInFps": 25,
+     "vInT": 29,
+     "running": true
+    },
+    "running": true,
+    "upTime": 87
+   }
+  },
+  {
+   "id": "X8A1001-E2",
+   "type": 1,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0
+    },
+    "vInFps": 0,
+    "vInT": 0,
+    "receiver": {
+     "id": "X8A1008-D5",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "drop": 0
+     },
+     "vDstats": {
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 550,
+      "min": 0
+     },
+     "vRstats": {
+      "late": 0,
+      "discarded_late": 0,
+      "drops_empty": 0,
+      "late_cum": 0,
+      "discarded_late_cum": 0,
+      "drops_empty_cum": 0,
+      "max_late_ms": 0,
+      "late_min_ms": 0,
+      "late_avg_ms": 0,
+      "late_n": 0,
+      "used_max_ms": 0,
+      "head_min_ms": 0,
+      "head_pct": 100,
+      "jit_min_us": 0,
+      "jit_avg_us": 0,
+      "jit_max_us": 0,
+      "jit_n": 0,
+      "jit_over": 0,
+      "ts_diff_max_us": 0,
+      "received": 0,
+      "expected": 0,
+      "stat": 100,
+      "statTot": 100,
+      "loss": 0,
+      "maxloss": 0,
+      "delay": 0
+     },
+     "vOutFps": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-E3",
+   "type": 1,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0
+    },
+    "vInFps": 0,
+    "vInT": 0,
+    "receiver": {
+     "id": "none",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "drop": 0
+     },
+     "vDstats": {
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 0,
+      "min": 0
+     },
+     "vRstats": {
+      "late": 0,
+      "discarded_late": 0,
+      "drops_empty": 0,
+      "late_cum": 0,
+      "discarded_late_cum": 0,
+      "drops_empty_cum": 0,
+      "max_late_ms": 0,
+      "late_min_ms": 0,
+      "late_avg_ms": 0,
+      "late_n": 0,
+      "used_max_ms": 0,
+      "head_min_ms": 0,
+      "head_pct": 100,
+      "jit_min_us": 0,
+      "jit_avg_us": 0,
+      "jit_max_us": 0,
+      "jit_n": 0,
+      "jit_over": 0,
+      "ts_diff_max_us": 0,
+      "received": 0,
+      "expected": 0,
+      "stat": 100,
+      "statTot": 100,
+      "loss": 0,
+      "maxloss": 0,
+      "delay": 0
+     },
+     "vOutFps": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-E4",
+   "type": 1,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0
+    },
+    "vInFps": 0,
+    "vInT": 0,
+    "receiver": {
+     "id": "X4A1005-D2",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "drop": 0
+     },
+     "vDstats": {
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 0,
+      "min": 0
+     },
+     "vRstats": {
+      "late": 0,
+      "discarded_late": 0,
+      "drops_empty": 0,
+      "late_cum": 0,
+      "discarded_late_cum": 0,
+      "drops_empty_cum": 0,
+      "max_late_ms": 0,
+      "late_min_ms": 0,
+      "late_avg_ms": 0,
+      "late_n": 0,
+      "used_max_ms": 0,
+      "head_min_ms": 0,
+      "head_pct": 100,
+      "jit_min_us": 0,
+      "jit_avg_us": 0,
+      "jit_max_us": 0,
+      "jit_n": 0,
+      "jit_over": 0,
+      "ts_diff_max_us": 0,
+      "received": 0,
+      "expected": 0,
+      "stat": 100,
+      "statTot": 100,
+      "loss": 0,
+      "maxloss": 0,
+      "delay": 0
+     },
+     "vOutFps": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-E5",
+   "type": 1,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0
+    },
+    "vInFps": 0,
+    "vInT": 0,
+    "receiver": {
+     "id": "X4A1006-D1",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "drop": 0
+     },
+     "vDstats": {
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 0,
+      "min": 0
+     },
+     "vRstats": {
+      "late": 0,
+      "discarded_late": 0,
+      "drops_empty": 0,
+      "late_cum": 0,
+      "discarded_late_cum": 0,
+      "drops_empty_cum": 0,
+      "max_late_ms": 0,
+      "late_min_ms": 0,
+      "late_avg_ms": 0,
+      "late_n": 0,
+      "used_max_ms": 0,
+      "head_min_ms": 0,
+      "head_pct": 100,
+      "jit_min_us": 0,
+      "jit_avg_us": 0,
+      "jit_max_us": 0,
+      "jit_n": 0,
+      "jit_over": 0,
+      "ts_diff_max_us": 0,
+      "received": 0,
+      "expected": 0,
+      "stat": 100,
+      "statTot": 100,
+      "loss": 0,
+      "maxloss": 0,
+      "delay": 0
+     },
+     "vOutFps": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-D2",
+   "type": 2,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0,
+     "resentDrop": 0,
+     "drop": 0
+    },
+    "vDstats": {
+     "drop": 0,
+     "corr": 0,
+     "missing": 0,
+     "fecCorrected": 0,
+     "fecnok": 0
+    },
+    "aDstats": {
+     "drop": 0,
+     "miss": 0,
+     "unsync": 0
+    },
+    "vRstats": {
+     "late": 0,
+     "discarded_late": 0,
+     "drops_empty": 0,
+     "late_cum": 0,
+     "discarded_late_cum": 0,
+     "drops_empty_cum": 0,
+     "max_late_ms": 0,
+     "late_min_ms": 0,
+     "late_avg_ms": 0,
+     "late_n": 0,
+     "used_max_ms": 0,
+     "head_min_ms": 0,
+     "head_pct": 100,
+     "jit_min_us": 0,
+     "jit_avg_us": 0,
+     "jit_max_us": 0,
+     "jit_n": 0,
+     "jit_over": 0,
+     "ts_diff_max_us": 0,
+     "received": 0,
+     "expected": 0,
+     "stat": 100,
+     "statTot": 100,
+     "loss": 0,
+     "maxloss": 0,
+     "delay": 0
+    },
+    "vPbuffer": {
+     "warning": false,
+     "buffer": 100,
+     "min": 0
+    },
+    "vOutFps": 0,
+    "mbps": {
+     "tx": 0,
+     "rx": 0
+    },
+    "sender": {
+     "id": "none",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-D3",
+   "type": 2,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0,
+     "resentDrop": 0,
+     "drop": 0
+    },
+    "vDstats": {
+     "drop": 0,
+     "corr": 0,
+     "missing": 0,
+     "fecCorrected": 0,
+     "fecnok": 0
+    },
+    "aDstats": {
+     "drop": 0,
+     "miss": 0,
+     "unsync": 0
+    },
+    "vRstats": {
+     "late": 0,
+     "discarded_late": 0,
+     "drops_empty": 0,
+     "late_cum": 0,
+     "discarded_late_cum": 0,
+     "drops_empty_cum": 0,
+     "max_late_ms": 0,
+     "late_min_ms": 0,
+     "late_avg_ms": 0,
+     "late_n": 0,
+     "used_max_ms": 0,
+     "head_min_ms": 0,
+     "head_pct": 100,
+     "jit_min_us": 0,
+     "jit_avg_us": 0,
+     "jit_max_us": 0,
+     "jit_n": 0,
+     "jit_over": 0,
+     "ts_diff_max_us": 0,
+     "received": 0,
+     "expected": 0,
+     "stat": 100,
+     "statTot": 100,
+     "loss": 0,
+     "maxloss": 0,
+     "delay": 0
+    },
+    "vPbuffer": {
+     "warning": false,
+     "buffer": 90,
+     "min": 0
+    },
+    "vOutFps": 0,
+    "mbps": {
+     "tx": 0,
+     "rx": 0
+    },
+    "sender": {
+     "id": "X4A1005-E1",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-D4",
+   "type": 2,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0,
+     "resentDrop": 0,
+     "drop": 0
+    },
+    "vDstats": {
+     "drop": 0,
+     "corr": 0,
+     "missing": 0,
+     "fecCorrected": 0,
+     "fecnok": 0
+    },
+    "aDstats": {
+     "drop": 0,
+     "miss": 0,
+     "unsync": 0
+    },
+    "vRstats": {
+     "late": 0,
+     "discarded_late": 0,
+     "drops_empty": 0,
+     "late_cum": 0,
+     "discarded_late_cum": 0,
+     "drops_empty_cum": 0,
+     "max_late_ms": 0,
+     "late_min_ms": 0,
+     "late_avg_ms": 0,
+     "late_n": 0,
+     "used_max_ms": 0,
+     "head_min_ms": 0,
+     "head_pct": 100,
+     "jit_min_us": 0,
+     "jit_avg_us": 0,
+     "jit_max_us": 0,
+     "jit_n": 0,
+     "jit_over": 0,
+     "ts_diff_max_us": 0,
+     "received": 0,
+     "expected": 0,
+     "stat": 100,
+     "statTot": 100,
+     "loss": 0,
+     "maxloss": 0,
+     "delay": 0
+    },
+    "vPbuffer": {
+     "warning": false,
+     "buffer": 90,
+     "min": 0
+    },
+    "vOutFps": 0,
+    "mbps": {
+     "tx": 0,
+     "rx": 0
+    },
+    "sender": {
+     "id": "X4A1005-E2",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  },
+  {
+   "id": "X8A1001-D5",
+   "type": 2,
+   "data": {
+    "xLink": {
+     "rtt": 0,
+     "p2p": 0,
+     "resent": 0,
+     "resentDrop": 0,
+     "drop": 0
+    },
+    "vDstats": {
+     "drop": 0,
+     "corr": 0,
+     "missing": 0,
+     "fecCorrected": 0,
+     "fecnok": 0
+    },
+    "aDstats": {
+     "drop": 0,
+     "miss": 0,
+     "unsync": 0
+    },
+    "vRstats": {
+     "late": 0,
+     "discarded_late": 0,
+     "drops_empty": 0,
+     "late_cum": 0,
+     "discarded_late_cum": 0,
+     "drops_empty_cum": 0,
+     "max_late_ms": 0,
+     "late_min_ms": 0,
+     "late_avg_ms": 0,
+     "late_n": 0,
+     "used_max_ms": 0,
+     "head_min_ms": 0,
+     "head_pct": 100,
+     "jit_min_us": 0,
+     "jit_avg_us": 0,
+     "jit_max_us": 0,
+     "jit_n": 0,
+     "jit_over": 0,
+     "ts_diff_max_us": 0,
+     "received": 0,
+     "expected": 0,
+     "stat": 100,
+     "statTot": 100,
+     "loss": 0,
+     "maxloss": 0,
+     "delay": 0
+    },
+    "vPbuffer": {
+     "warning": false,
+     "buffer": 90,
+     "min": 0
+    },
+    "vOutFps": 0,
+    "mbps": {
+     "tx": 0,
+     "rx": 0
+    },
+    "sender": {
+     "id": "X4A1006-E1",
+     "xLink": {
+      "rtt": 0,
+      "p2p": 0,
+      "resent": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "running": false
+    },
+    "running": false,
+    "upTime": 0
+   }
+  }
+ ]
+}

@@ -94,7 +94,10 @@ func (l *keyedList[T, P]) takeIssues() []decodeIssue {
 func issueFromError(key string, raw json.RawMessage, err error) decodeIssue {
 	var typeErr *json.UnmarshalTypeError
 	if errors.As(err, &typeErr) {
-		return decodeIssue{Key: key + "." + typeErr.Field, Reason: "unexpected " + typeErr.Value}
+		if typeErr.Field != "" {
+			key += "." + typeErr.Field
+		}
+		return decodeIssue{Key: key, Reason: "unexpected " + typeErr.Value}
 	}
 	return decodeIssue{Key: key, Raw: raw, Reason: err.Error()}
 }
@@ -131,6 +134,14 @@ func (c *collector) add(issues ...decodeIssue) {
 }
 
 func (c *collector) int(key string, f *flexInt) int {
+	if issue, ok := f.issue(key); ok {
+		c.add(issue)
+		f.Invalid = nil
+	}
+	return f.Value
+}
+
+func (c *collector) float(key string, f *flexFloat) float64 {
 	if issue, ok := f.issue(key); ok {
 		c.add(issue)
 		f.Invalid = nil

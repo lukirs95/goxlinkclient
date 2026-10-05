@@ -1,0 +1,1215 @@
+{
+ "sysid": "X8A1001",
+ "dataid": 7614,
+ "data": {
+  "time": "2026-10-05 13:12:01 +0000",
+  "local": [
+   {
+    "id": "X8A1001",
+    "type": 0,
+    "data": {
+     "ptpSync": true,
+     "ptpSyncLocal": false,
+     "ptp": true,
+     "nmos": true,
+     "osUpTime": 15120,
+     "cpu": 2,
+     "cpuTemp": 63,
+     "sysTemp": 0,
+     "vTotRun": 1,
+     "vLic": 8,
+     "vLicDec": 4,
+     "vLicUsed": 0,
+     "vLicUsedDec": 1
+    }
+   },
+   {
+    "id": "eth0",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "eth1",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "eth2",
+    "type": 0,
+    "data": {
+     "rx": 11.64,
+     "tx": 0.5
+    }
+   },
+   {
+    "id": "eth3",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "eth4",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "eth5",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "eth6",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "eth7",
+    "type": 0,
+    "data": {
+     "rx": 0,
+     "tx": 0
+    }
+   },
+   {
+    "id": "X8A1001-E1",
+    "type": 1,
+    "data": {
+     "xLink": {
+      "xAckR": false,
+      "xAck": true,
+      "xAckRmax": 2,
+      "maxRtt": 0,
+      "diffRtt": 0,
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentTdiff": 0,
+      "resentAck": 0,
+      "lateAck": 0,
+      "lateAckResent": 0,
+      "dropAck": 0,
+      "dropAckResent": 0,
+      "noAck": 0,
+      "dropResend": 0,
+      "inList": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "aInCh": {},
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-D1",
+    "type": 2,
+    "data": {
+     "xLink": {
+      "rtt": 0.18,
+      "cloud": 0,
+      "p2p": 369041,
+      "drop": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "inList": 251
+     },
+     "vDstats": {
+      "total": 2000,
+      "disp": 2000,
+      "drop": 0,
+      "corr": 11,
+      "missing": 0,
+      "fecok": 1969,
+      "fecCorrected": 0,
+      "fecnok": 11
+     },
+     "aDstats": {
+      "total": 2002,
+      "drop": 2,
+      "miss": 0,
+      "unsync": 1
+     },
+     "vRstats": {
+      "slowDecode": 0,
+      "missing": 0,
+      "last": 0,
+      "late": 0,
+      "lateLast": 0,
+      "lateDrop": 0,
+      "lateDropLast": 0
+     },
+     "vOutFps": 25,
+     "vDecFps": 25,
+     "aInCh": {
+      "1": {
+       "id": 1,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "2": {
+       "id": 2,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "3": {
+       "id": 3,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "4": {
+       "id": 4,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "5": {
+       "id": 5,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "6": {
+       "id": 6,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "7": {
+       "id": 7,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "8": {
+       "id": 8,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "9": {
+       "id": 9,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "10": {
+       "id": 10,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "11": {
+       "id": 11,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "12": {
+       "id": 12,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "13": {
+       "id": 13,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "14": {
+       "id": 14,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      },
+      "15": {
+       "id": 15,
+       "dBFS_RMS": "-22.95",
+       "dBFS_peak": "-17.94"
+      },
+      "16": {
+       "id": 16,
+       "dBFS_RMS": "-21.19",
+       "dBFS_peak": "-17.71"
+      }
+     },
+     "vFinBuffer": 0,
+     "ndiNumCon": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 10.13
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 100,
+      "min": 0
+     },
+     "upTime": 87,
+     "statsTime": 83
+    }
+   },
+   {
+    "id": "X8A1001-E2",
+    "type": 1,
+    "data": {
+     "xLink": {
+      "xAckR": false,
+      "xAck": true,
+      "xAckRmax": 2,
+      "maxRtt": 300,
+      "diffRtt": 20,
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentTdiff": 0,
+      "resentAck": 0,
+      "lateAck": 0,
+      "lateAckResent": 0,
+      "dropAck": 0,
+      "dropAckResent": 0,
+      "noAck": 0,
+      "dropResend": 0,
+      "inList": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "aInCh": {},
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-E3",
+    "type": 1,
+    "data": {
+     "xLink": {
+      "xAckR": false,
+      "xAck": true,
+      "xAckRmax": 2,
+      "maxRtt": 0,
+      "diffRtt": 0,
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentTdiff": 0,
+      "resentAck": 0,
+      "lateAck": 0,
+      "lateAckResent": 0,
+      "dropAck": 0,
+      "dropAckResent": 0,
+      "noAck": 0,
+      "dropResend": 0,
+      "inList": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "aInCh": {},
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-E4",
+    "type": 1,
+    "data": {
+     "xLink": {
+      "xAckR": false,
+      "xAck": true,
+      "xAckRmax": 2,
+      "maxRtt": 0,
+      "diffRtt": 0,
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentTdiff": 0,
+      "resentAck": 0,
+      "lateAck": 0,
+      "lateAckResent": 0,
+      "dropAck": 0,
+      "dropAckResent": 0,
+      "noAck": 0,
+      "dropResend": 0,
+      "inList": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "aInCh": {},
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-E5",
+    "type": 1,
+    "data": {
+     "xLink": {
+      "xAckR": false,
+      "xAck": true,
+      "xAckRmax": 2,
+      "maxRtt": 0,
+      "diffRtt": 0,
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "resent": 0,
+      "resentTdiff": 0,
+      "resentAck": 0,
+      "lateAck": 0,
+      "lateAckResent": 0,
+      "dropAck": 0,
+      "dropAckResent": 0,
+      "noAck": 0,
+      "dropResend": 0,
+      "inList": 0
+     },
+     "vInFps": 0,
+     "vInT": 0,
+     "aInCh": {},
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-D2",
+    "type": 2,
+    "data": {
+     "xLink": {
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "drop": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "inList": 0
+     },
+     "vDstats": {
+      "total": 0,
+      "disp": 0,
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecok": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "total": 0,
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vRstats": {
+      "slowDecode": 0,
+      "missing": 0,
+      "last": 0,
+      "late": 0,
+      "lateLast": 0,
+      "lateDrop": 0,
+      "lateDropLast": 0
+     },
+     "vOutFps": 0,
+     "vDecFps": 0,
+     "aInCh": {},
+     "vFinBuffer": 0,
+     "ndiNumCon": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 100,
+      "min": 0
+     },
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-D3",
+    "type": 2,
+    "data": {
+     "xLink": {
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "drop": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "inList": 0
+     },
+     "vDstats": {
+      "total": 0,
+      "disp": 0,
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecok": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "total": 0,
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vRstats": {
+      "slowDecode": 0,
+      "missing": 0,
+      "last": 0,
+      "late": 0,
+      "lateLast": 0,
+      "lateDrop": 0,
+      "lateDropLast": 0
+     },
+     "vOutFps": 0,
+     "vDecFps": 0,
+     "aInCh": {},
+     "vFinBuffer": 0,
+     "ndiNumCon": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 90,
+      "min": 0
+     },
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-D4",
+    "type": 2,
+    "data": {
+     "xLink": {
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "drop": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "inList": 0
+     },
+     "vDstats": {
+      "total": 0,
+      "disp": 0,
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecok": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "total": 0,
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vRstats": {
+      "slowDecode": 0,
+      "missing": 0,
+      "last": 0,
+      "late": 0,
+      "lateLast": 0,
+      "lateDrop": 0,
+      "lateDropLast": 0
+     },
+     "vOutFps": 0,
+     "vDecFps": 0,
+     "aInCh": {},
+     "vFinBuffer": 0,
+     "ndiNumCon": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 90,
+      "min": 0
+     },
+     "upTime": 0,
+     "statsTime": 0
+    }
+   },
+   {
+    "id": "X8A1001-D5",
+    "type": 2,
+    "data": {
+     "xLink": {
+      "rtt": 0,
+      "cloud": 0,
+      "p2p": 0,
+      "drop": 0,
+      "resent": 0,
+      "resentDrop": 0,
+      "inList": 0
+     },
+     "vDstats": {
+      "total": 0,
+      "disp": 0,
+      "drop": 0,
+      "corr": 0,
+      "missing": 0,
+      "fecok": 0,
+      "fecCorrected": 0,
+      "fecnok": 0
+     },
+     "aDstats": {
+      "total": 0,
+      "drop": 0,
+      "miss": 0,
+      "unsync": 0
+     },
+     "vRstats": {
+      "slowDecode": 0,
+      "missing": 0,
+      "last": 0,
+      "late": 0,
+      "lateLast": 0,
+      "lateDrop": 0,
+      "lateDropLast": 0
+     },
+     "vOutFps": 0,
+     "vDecFps": 0,
+     "aInCh": {},
+     "vFinBuffer": 0,
+     "ndiNumCon": 0,
+     "mbps": {
+      "tx": 0,
+      "rx": 0
+     },
+     "vPbuffer": {
+      "warning": false,
+      "buffer": 90,
+      "min": 0
+     },
+     "upTime": 0,
+     "statsTime": 0
+    }
+   }
+  ],
+  "remote": [
+   {
+    "sysid": "X8A1008",
+    "data": [
+     {
+      "id": "X8A1008",
+      "type": 0,
+      "data": {
+       "ptpSync": true,
+       "ptpSyncLocal": false,
+       "ptp": true,
+       "nmos": true,
+       "osUpTime": 15120,
+       "cpu": 2,
+       "cpuTemp": 52,
+       "sysTemp": 0,
+       "vTotRun": 5,
+       "vLic": 8,
+       "vLicDec": 4,
+       "vLicUsed": 1,
+       "vLicUsedDec": 4,
+       "rtt": "0.201"
+      }
+     },
+     {
+      "id": "eth0",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "eth1",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "eth2",
+      "type": 0,
+      "data": {
+       "rx": 0.61,
+       "tx": 12.49
+      }
+     },
+     {
+      "id": "eth3",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "eth4",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "eth5",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "eth6",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "eth7",
+      "type": 0,
+      "data": {
+       "rx": 0,
+       "tx": 0
+      }
+     },
+     {
+      "id": "X8A1008-E1",
+      "type": 1,
+      "data": {
+       "xLink": {
+        "xAckR": false,
+        "xAck": true,
+        "xAckRmax": 2,
+        "maxRtt": 0,
+        "diffRtt": 0,
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "resent": 0,
+        "resentTdiff": 0,
+        "resentAck": 0,
+        "lateAck": 0,
+        "lateAckResent": 0,
+        "dropAck": 0,
+        "dropAckResent": 0,
+        "noAck": 0,
+        "dropResend": 0,
+        "inList": 0
+       },
+       "vInFps": 0,
+       "aInCh": {},
+       "vInT": 0,
+       "upTime": 0,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-D1",
+      "type": 2,
+      "data": {
+       "xLink": {
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "drop": 0,
+        "resent": 0,
+        "resentDrop": 0,
+        "inList": 0
+       },
+       "vDstats": {
+        "total": 0,
+        "disp": 0,
+        "drop": 0,
+        "corr": 0,
+        "missing": 0,
+        "fecok": 0,
+        "fecCorrected": 0,
+        "fecnok": 0
+       },
+       "aDstats": {
+        "total": 0,
+        "drop": 0,
+        "miss": 0,
+        "unsync": 0
+       },
+       "vRstats": {
+        "slowDecode": 0,
+        "missing": 0,
+        "last": 0,
+        "late": 0,
+        "lateLast": 0,
+        "lateDrop": 0,
+        "lateDropLast": 0
+       },
+       "vOutFps": 0,
+       "vDecFps": 0,
+       "aInCh": {},
+       "vFinBuffer": 0,
+       "ndiNumCon": 0,
+       "mbps": {
+        "tx": 0,
+        "rx": 0
+       },
+       "vPbuffer": {
+        "warning": false,
+        "buffer": 700,
+        "min": 0
+       },
+       "upTime": 15066,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-D2",
+      "type": 2,
+      "data": {
+       "xLink": {
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "drop": 0,
+        "resent": 0,
+        "resentDrop": 0,
+        "inList": 0
+       },
+       "vDstats": {
+        "total": 0,
+        "disp": 0,
+        "drop": 0,
+        "corr": 0,
+        "missing": 0,
+        "fecok": 0,
+        "fecCorrected": 0,
+        "fecnok": 0
+       },
+       "aDstats": {
+        "total": 0,
+        "drop": 0,
+        "miss": 0,
+        "unsync": 0
+       },
+       "vRstats": {
+        "slowDecode": 0,
+        "missing": 0,
+        "last": 0,
+        "late": 0,
+        "lateLast": 0,
+        "lateDrop": 0,
+        "lateDropLast": 0
+       },
+       "vOutFps": 0,
+       "vDecFps": 0,
+       "aInCh": {},
+       "vFinBuffer": 0,
+       "ndiNumCon": 0,
+       "mbps": {
+        "tx": 0,
+        "rx": 0
+       },
+       "vPbuffer": {
+        "warning": false,
+        "buffer": 90,
+        "min": 0
+       },
+       "upTime": 15097,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-D3",
+      "type": 2,
+      "data": {
+       "xLink": {
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "drop": 0,
+        "resent": 0,
+        "resentDrop": 0,
+        "inList": 0
+       },
+       "vDstats": {
+        "total": 0,
+        "disp": 0,
+        "drop": 0,
+        "corr": 0,
+        "missing": 0,
+        "fecok": 0,
+        "fecCorrected": 0,
+        "fecnok": 0
+       },
+       "aDstats": {
+        "total": 0,
+        "drop": 0,
+        "miss": 0,
+        "unsync": 0
+       },
+       "vRstats": {
+        "slowDecode": 0,
+        "missing": 0,
+        "last": 0,
+        "late": 0,
+        "lateLast": 0,
+        "lateDrop": 0,
+        "lateDropLast": 0
+       },
+       "vOutFps": 0,
+       "vDecFps": 0,
+       "aInCh": {},
+       "vFinBuffer": 0,
+       "ndiNumCon": 0,
+       "mbps": {
+        "tx": 0,
+        "rx": 0
+       },
+       "vPbuffer": {
+        "warning": false,
+        "buffer": 90,
+        "min": 0
+       },
+       "upTime": 15097,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-D4",
+      "type": 2,
+      "data": {
+       "xLink": {
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "drop": 0,
+        "resent": 0,
+        "resentDrop": 0,
+        "inList": 0
+       },
+       "vDstats": {
+        "total": 0,
+        "disp": 0,
+        "drop": 0,
+        "corr": 0,
+        "missing": 0,
+        "fecok": 0,
+        "fecCorrected": 0,
+        "fecnok": 0
+       },
+       "aDstats": {
+        "total": 0,
+        "drop": 0,
+        "miss": 0,
+        "unsync": 0
+       },
+       "vRstats": {
+        "slowDecode": 0,
+        "missing": 0,
+        "last": 0,
+        "late": 0,
+        "lateLast": 0,
+        "lateDrop": 0,
+        "lateDropLast": 0
+       },
+       "vOutFps": 0,
+       "vDecFps": 0,
+       "aInCh": {},
+       "vFinBuffer": 0,
+       "ndiNumCon": 0,
+       "mbps": {
+        "tx": 0,
+        "rx": 0
+       },
+       "vPbuffer": {
+        "warning": false,
+        "buffer": 90,
+        "min": 0
+       },
+       "upTime": 15097,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-D5",
+      "type": 2,
+      "data": {
+       "xLink": {
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "drop": 0,
+        "resent": 0,
+        "resentDrop": 0,
+        "inList": 0
+       },
+       "vDstats": {
+        "total": 8750,
+        "disp": 8750,
+        "drop": 0,
+        "corr": 15,
+        "missing": 0,
+        "fecok": 8715,
+        "fecCorrected": 0,
+        "fecnok": 15
+       },
+       "aDstats": {
+        "total": 0,
+        "drop": 0,
+        "miss": 0,
+        "unsync": 0
+       },
+       "vRstats": {
+        "slowDecode": 0,
+        "missing": 0,
+        "last": 0,
+        "late": 0,
+        "lateLast": 0,
+        "lateDrop": 0,
+        "lateDropLast": 0
+       },
+       "vOutFps": 0,
+       "vDecFps": 0,
+       "aInCh": {},
+       "vFinBuffer": 0,
+       "ndiNumCon": 0,
+       "mbps": {
+        "tx": 0,
+        "rx": 0
+       },
+       "vPbuffer": {
+        "warning": false,
+        "buffer": 550,
+        "min": 0
+       },
+       "upTime": 0,
+       "statsTime": 355
+      }
+     },
+     {
+      "id": "X8A1008-E2",
+      "type": 1,
+      "data": {
+       "xLink": {
+        "xAckR": false,
+        "xAck": true,
+        "xAckRmax": 2,
+        "maxRtt": 0,
+        "diffRtt": 0,
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "resent": 0,
+        "resentTdiff": 0,
+        "resentAck": 0,
+        "lateAck": 0,
+        "lateAckResent": 0,
+        "dropAck": 0,
+        "dropAckResent": 0,
+        "noAck": 0,
+        "dropResend": 0,
+        "inList": 0
+       },
+       "vInFps": 0,
+       "aInCh": {},
+       "vInT": 0,
+       "upTime": 0,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-E3",
+      "type": 1,
+      "data": {
+       "xLink": {
+        "xAckR": false,
+        "xAck": true,
+        "xAckRmax": 2,
+        "maxRtt": 0,
+        "diffRtt": 0,
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "resent": 0,
+        "resentTdiff": 0,
+        "resentAck": 0,
+        "lateAck": 0,
+        "lateAckResent": 0,
+        "dropAck": 0,
+        "dropAckResent": 0,
+        "noAck": 0,
+        "dropResend": 0,
+        "inList": 0
+       },
+       "vInFps": 0,
+       "aInCh": {},
+       "vInT": 0,
+       "upTime": 0,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-E4",
+      "type": 1,
+      "data": {
+       "xLink": {
+        "xAckR": false,
+        "xAck": true,
+        "xAckRmax": 2,
+        "maxRtt": 0,
+        "diffRtt": 0,
+        "rtt": 0,
+        "cloud": 0,
+        "p2p": 0,
+        "resent": 0,
+        "resentTdiff": 0,
+        "resentAck": 0,
+        "lateAck": 0,
+        "lateAckResent": 0,
+        "dropAck": 0,
+        "dropAckResent": 0,
+        "noAck": 0,
+        "dropResend": 0,
+        "inList": 0
+       },
+       "vInFps": 0,
+       "aInCh": {},
+       "vInT": 0,
+       "upTime": 0,
+       "statsTime": 0
+      }
+     },
+     {
+      "id": "X8A1008-E5",
+      "type": 1,
+      "data": {
+       "xLink": {
+        "xAckR": false,
+        "xAck": true,
+        "xAckRmax": 2,
+        "maxRtt": 300,
+        "diffRtt": 20,
+        "rtt": 0.14,
+        "cloud": 25,
+        "p2p": 369761,
+        "resent": 0,
+        "resentTdiff": 0,
+        "resentAck": 0,
+        "lateAck": 0,
+        "lateAckResent": 0,
+        "dropAck": 0,
+        "dropAckResent": 0,
+        "noAck": 0,
+        "dropResend": 0,
+        "inList": 8
+       },
+       "vInFps": 25,
+       "aInCh": {
+        "1": {
+         "id": 1,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "2": {
+         "id": 2,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "3": {
+         "id": 3,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "4": {
+         "id": 4,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "5": {
+         "id": 5,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "6": {
+         "id": 6,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "7": {
+         "id": 7,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "8": {
+         "id": 8,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "9": {
+         "id": 9,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "10": {
+         "id": 10,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "11": {
+         "id": 11,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "12": {
+         "id": 12,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "13": {
+         "id": 13,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "14": {
+         "id": 14,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        },
+        "15": {
+         "id": 15,
+         "dBFS_RMS": "-22.01",
+         "dBFS_peak": "-18.00"
+        },
+        "16": {
+         "id": 16,
+         "dBFS_RMS": "-22.95",
+         "dBFS_peak": "-18.00"
+        }
+       },
+       "vInT": 29,
+       "upTime": 85,
+       "statsTime": 85
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

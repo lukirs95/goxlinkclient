@@ -2,8 +2,11 @@
 
 Go client for VideoXLink systems. There is no official API; the client speaks
 the JSON-RPC protocol of the web frontend, which is documented in
-[docs/ui-protocol.md](docs/ui-protocol.md). Tested against firmware 1.7.2 and
-1.8.4.
+[docs/ui-protocol.md](docs/ui-protocol.md).
+
+Supported firmware: 1.8.4. **Firmware 1.7 is deprecated and not supported.**
+Its state messages still decode, but unit statistics require
+`localStats.subscribe`, which is only verified on 1.8.
 
 ```sh
 go get github.com/lukirs95/goxlinkclient/v4
@@ -35,6 +38,28 @@ for u := range updates {
 
 `Run` returns when the connection ends; call it again to reconnect. See
 [example/main.go](example/main.go) for several systems with reconnects.
+
+## Statistics
+
+With `WithStats(ch)` the client delivers a `Stats` value about every two
+seconds. Unit and interface statistics come from `systems.localStats`; the
+system health (CPU, temperatures, PTP sync, licenses) and the health of remote
+systems come from `systems.stats`, which `systems.localStats` does not include.
+
+```go
+stats := make(chan xlinkclient.StatsUpdate)
+client := xlinkclient.New(addr, xlinkclient.WithCredentials("admin", password),
+	xlinkclient.WithStats(stats))
+
+for s := range stats {
+	for _, dec := range s.Stats.Decoders {
+		fmt.Println(dec.ID, dec.OutputFPS, dec.XLink.RTT, dec.Receive.Health)
+	}
+}
+```
+
+The statistics history the web UI loads (`systems.localStatsHistory`) is not
+used.
 
 ## Changing settings
 

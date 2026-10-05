@@ -115,6 +115,47 @@ func (i flexInt) issue(key string) (decodeIssue, bool) {
 	return decodeIssue{Key: key, Raw: i.Invalid}, i.Invalid != nil
 }
 
+// flexFloat is a number that the device encodes either as a JSON number or as
+// a string holding a number. Receive statistics (vRstats) are numbers while a
+// decoder is idle and strings such as "100.000" while it is running. An empty
+// string decodes to zero and a JSON null leaves the current value untouched.
+type flexFloat struct {
+	Value float64
+	// Invalid holds the raw input if it could not be decoded. Value is left
+	// unchanged in that case.
+	Invalid json.RawMessage
+}
+
+// UnmarshalJSON implements json.Unmarshaler. It never returns an error.
+func (f *flexFloat) UnmarshalJSON(data []byte) error {
+	f.Invalid = nil
+	if bytes.Equal(data, jsonNull) {
+		return nil
+	}
+
+	text := string(data)
+	if s, ok := unquote(data); ok {
+		if s == "" {
+			f.Value = 0
+			return nil
+		}
+		text = s
+	}
+
+	v, err := strconv.ParseFloat(text, 64)
+	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+		f.Invalid = slices.Clone(data)
+		return nil
+	}
+	f.Value = v
+	return nil
+}
+
+// issue returns a decodeIssue for key if the last decoded input was invalid.
+func (f flexFloat) issue(key string) (decodeIssue, bool) {
+	return decodeIssue{Key: key, Raw: f.Invalid}, f.Invalid != nil
+}
+
 // flexBool is a boolean that the device encodes either as a JSON boolean or as
 // a string such as "true" or "false" (seen for sdilevelA). Any value accepted
 // by strconv.ParseBool is valid. A JSON null leaves the current value

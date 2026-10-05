@@ -2,19 +2,19 @@ package xlinkclient
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 
 	jsonrpc "github.com/lukirs95/gojsonrpc"
 )
 
-// readLimit is the maximum size of a message from the device. systems.full of
-// a fully equipped system is well below this.
-const readLimit = 128 << 10
+// readLimit is the maximum size of a message from the device. It must hold
+// unexpectedly large history blocks of systems.localStatsHistory (600 KB).
+const readLimit = 1 << 20
 
 var (
 	// ErrNoCredentials is returned by Run if WithCredentials was not given.
@@ -184,13 +184,10 @@ func (c *Client) Run(ctx context.Context) error {
 	defer cancel(nil)
 
 	var (
-		wg       sync.WaitGroup
-		updates  *latest[Update]
-		stats    *latest[StatsUpdate]
-		fullCh   = make(jsonrpc.Subscription)
-		deltaCh  = make(jsonrpc.Subscription)
-		statsCh  = make(jsonrpc.Subscription)
-		adviceCh = make(jsonrpc.Subscription)
+		wg      sync.WaitGroup
+		updates *latest[Update]
+		stats   *latest[StatsUpdate]
+		subs    = newSubscriptions()
 	)
 	if c.updatesOut != nil {
 		updates = newLatest(c.updatesOut)
@@ -203,13 +200,14 @@ func (c *Client) Run(ctx context.Context) error {
 		go func() { defer wg.Done(); stats.run(ctx) }()
 	}
 
-	c.jrpc.SubscribeMethod(ctx, notifySystemsFull, fullCh)
-	c.jrpc.SubscribeMethod(ctx, notifySystemsUpdate, deltaCh)
-	c.jrpc.SubscribeMethod(ctx, notifySystemsStats, statsCh)
-	c.jrpc.SubscribeMethod(ctx, notifyAuthentication, adviceCh)
+	// systems.localStatsHistory is deliberately not subscribed; gojsonrpc
+	// drops notifications without subscriber.
+	for method, ch := range subs.byMethod() {
+		c.jrpc.SubscribeMethod(ctx, method, ch)
+	}
 	defer func() {
-		for _, m := range []jsonrpc.Method{notifySystemsFull, notifySystemsUpdate, notifySystemsStats, notifyAuthentication} {
-			c.jrpc.UnsubscribeMethod(m)
+		for method := range subs.byMethod() {
+			c.jrpc.UnsubscribeMethod(method)
 		}
 	}()
 
@@ -222,19 +220,28 @@ func (c *Client) Run(ctx context.Context) error {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		c.readLoop(connDone, fullCh, deltaCh, statsCh, updates, stats)
+		c.readLoop(connDone, subs, updates, stats)
 	}()
 	go func() {
 		defer wg.Done()
-		if err := c.authenticate(ctx, adviceCh); err != nil {
+		if err := c.authenticate(ctx, subs.advice); err != nil {
 			cancel(err)
+		} else {
+			// Subscribe concurrently: the device announces itself again
+			// right after login, and that notification must be received
+			// below before gojsonrpc can deliver the subscribe response.
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c.subscribeLocalStats(ctx)
+			}()
 		}
 		// The device may announce itself again after login.
 		for {
 			select {
 			case <-connDone:
 				return
-			case <-adviceCh:
+			case <-subs.advice:
 			}
 		}
 	}()
@@ -259,21 +266,79 @@ func (c *Client) Run(ctx context.Context) error {
 	return nil
 }
 
+// subscriptions are the notification channels of one connection.
+type subscriptions struct {
+	full       jsonrpc.Subscription
+	delta      jsonrpc.Subscription
+	stats      jsonrpc.Subscription
+	localStats jsonrpc.Subscription
+	advice     jsonrpc.Subscription
+}
+
+func newSubscriptions() subscriptions {
+	return subscriptions{
+		full:       make(jsonrpc.Subscription),
+		delta:      make(jsonrpc.Subscription),
+		stats:      make(jsonrpc.Subscription),
+		localStats: make(jsonrpc.Subscription),
+		advice:     make(jsonrpc.Subscription),
+	}
+}
+
+func (s subscriptions) byMethod() map[jsonrpc.Method]jsonrpc.Subscription {
+	return map[jsonrpc.Method]jsonrpc.Subscription{
+		notifySystemsFull:    s.full,
+		notifySystemsUpdate:  s.delta,
+		notifySystemsStats:   s.stats,
+		notifyLocalStats:     s.localStats,
+		notifyAuthentication: s.advice,
+	}
+}
+
+// localStatsParams subscribes to systems.localStats. The device always sends
+// a history first; batch and max limit it to a single small block. With the
+// web UI's values (60/600) the history blocks exceed 600 KB each.
+var localStatsParams = map[string]any{"sysid": "local", "batch": 1, "max": 1}
+
+// subscribeLocalStats requests unit and interface statistics. Firmware 1.7 is
+// not supported; if the request fails, only the system health is delivered.
+func (c *Client) subscribeLocalStats(ctx context.Context) {
+	if err := c.call(ctx, methodLocalStats, localStatsParams); err != nil && ctx.Err() == nil {
+		c.logger.Warn("unit statistics are not available", slog.Any("error", err))
+	}
+}
+
 // readLoop merges system messages into the state, publishes snapshots and
 // forwards statistics until done is closed.
-func (c *Client) readLoop(done <-chan struct{}, fullCh, deltaCh, statsCh jsonrpc.Subscription, updates *latest[Update], stats *latest[StatsUpdate]) {
-	var st state
+func (c *Client) readLoop(done <-chan struct{}, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate]) {
+	var (
+		st     state
+		health Health
+		peers  []PeerStats
+		// Statistics are sent completely every few seconds, so each invalid
+		// value is logged only once per connection.
+		reported = map[string]bool{}
+	)
+	logStatsIssues := func(issues []decodeIssue) {
+		for _, issue := range issues {
+			if !reported[issue.Key] {
+				reported[issue.Key] = true
+				c.logger.Warn("ignored invalid statistics value", slog.String("value", issue.String()))
+			}
+		}
+	}
+
 	for {
 		select {
 		case <-done:
 			return
-		case full := <-fullCh:
+		case full := <-subs.full:
 			if err := st.applyFull(full.Params); err != nil {
 				c.logger.Error("failed to apply full state", slog.Any("error", err))
 				continue
 			}
 			c.publish(&st, updates)
-		case delta := <-deltaCh:
+		case delta := <-subs.delta:
 			gap, err := st.applyUpdate(delta.Params)
 			if err != nil {
 				c.logger.Error("failed to apply update", slog.Any("error", err))
@@ -283,14 +348,31 @@ func (c *Client) readLoop(done <-chan struct{}, fullCh, deltaCh, statsCh jsonrpc
 				c.logger.Warn("updates were lost, state may be incomplete until reconnect")
 			}
 			c.publish(&st, updates)
-		case msg := <-statsCh:
-			var s Stats
-			if err := json.Unmarshal(msg.Params, &s); err != nil {
+		case msg := <-subs.stats:
+			h, p, issues, err := decodeSystemStats(msg.Params)
+			if err != nil {
+				c.logger.Error("failed to decode system statistics", slog.Any("error", err))
+				continue
+			}
+			logStatsIssues(issues)
+			health, peers = h, p
+		case msg := <-subs.localStats:
+			ls, issues, err := decodeLocalStats(msg.Params)
+			if err != nil {
 				c.logger.Error("failed to decode statistics", slog.Any("error", err))
 				continue
 			}
+			logStatsIssues(issues)
 			if stats != nil {
-				stats.put(StatsUpdate{Client: c, Stats: s})
+				stats.put(StatsUpdate{Client: c, Stats: Stats{
+					System:     ls.System,
+					Time:       ls.Time,
+					Health:     health,
+					Interfaces: ls.Interfaces,
+					Encoders:   ls.Encoders,
+					Decoders:   ls.Decoders,
+					Peers:      slices.Clone(peers),
+				}})
 			}
 		}
 	}

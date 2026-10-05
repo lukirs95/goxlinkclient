@@ -26,22 +26,29 @@ type request struct {
 // fakeDevice is a minimal VideoXLink websocket endpoint: it announces itself,
 // checks the password, sends systems.full and answers every other request.
 type fakeDevice struct {
-	t        *testing.T
-	srv      *httptest.Server
-	password string
-	full     []byte
-	reject   map[string]bool
-	requests chan request
+	t           *testing.T
+	srv         *httptest.Server
+	password    string
+	full        []byte
+	systemStats []byte
+	localStats  []byte
+	reject      map[string]bool
+	requests    chan request
+	// statsSubscribe receives the params of localStats.subscribe.
+	statsSubscribe chan json.RawMessage
 }
 
 func newFakeDevice(t *testing.T, password string) *fakeDevice {
 	t.Helper()
 	d := &fakeDevice{
-		t:        t,
-		password: password,
-		full:     readFixture(t, "systems_full_1.8.json"),
-		reject:   map[string]bool{},
-		requests: make(chan request, 16),
+		t:              t,
+		password:       password,
+		full:           readFixture(t, "systems_full_1.8.json"),
+		systemStats:    readFixture(t, "stats_system_1.8.json"),
+		localStats:     readFixture(t, "stats_local_1.8.json"),
+		reject:         map[string]bool{},
+		requests:       make(chan request, 16),
+		statsSubscribe: make(chan json.RawMessage, 1),
 	}
 	d.srv = httptest.NewServer(http.HandlerFunc(d.serve))
 	t.Cleanup(d.srv.Close)
@@ -90,6 +97,27 @@ func (d *fakeDevice) serve(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := notify("systems.full", d.full); err != nil {
+				return
+			}
+			continue
+		}
+		if req.Method == "localStats.subscribe" {
+			select {
+			case d.statsSubscribe <- req.Params:
+			default:
+			}
+			if err := respond(req.ID, map[string]any{"method": req.Method, "response": true}); err != nil {
+				return
+			}
+			// The history is not subscribed by the client and must be
+			// ignored; health arrives before the unit statistics.
+			if err := notify("systems.localStatsHistory", json.RawMessage(`{"sysid":"`+fakeSystemID+`","data":[]}`)); err != nil {
+				return
+			}
+			if err := notify("systems.stats", d.systemStats); err != nil {
+				return
+			}
+			if err := notify("systems.localStats", d.localStats); err != nil {
 				return
 			}
 			continue
@@ -244,6 +272,48 @@ func TestClientEndToEnd(t *testing.T) {
 	}
 	if err := c.Start(context.Background(), "X8A1001-E1"); !errors.Is(err, ErrNotConnected) {
 		t.Errorf("Start after Run = %v, want ErrNotConnected", err)
+	}
+}
+
+func TestStatsEndToEnd(t *testing.T) {
+	d := newFakeDevice(t, "secret")
+	stats := make(chan StatsUpdate)
+	c := New(d.addr(), WithCredentials("admin", "secret"), WithStats(stats))
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- c.Run(ctx) }()
+
+	select {
+	case params := <-d.statsSubscribe:
+		// A minimal history keeps messages far below the read limit.
+		if string(params) != `{"batch":1,"max":1,"sysid":"local"}` {
+			t.Errorf("localStats.subscribe params = %s", params)
+		}
+	case <-ctx.Done():
+		t.Fatal("localStats.subscribe not received")
+	}
+
+	select {
+	case u := <-stats:
+		s := u.Stats
+		if u.Client != c || s.System != fakeSystemID {
+			t.Errorf("stats from client %p system %s", u.Client, s.System)
+		}
+		// Units come from systems.localStats, health from systems.stats.
+		if len(s.Decoders) != 5 || len(s.Encoders) != 5 || len(s.Interfaces) != 4 {
+			t.Errorf("counts enc=%d dec=%d nets=%d", len(s.Encoders), len(s.Decoders), len(s.Interfaces))
+		}
+		if s.Health.CPUTemp != 63 || !s.Health.PTPSync || len(s.Peers) != 1 {
+			t.Errorf("Health = %+v, peers %d", s.Health, len(s.Peers))
+		}
+	case <-ctx.Done():
+		t.Fatal("no statistics received")
+	}
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Errorf("Run returned %v", err)
 	}
 }
 

@@ -116,6 +116,44 @@ func TestFlexIntInStruct(t *testing.T) {
 	}
 }
 
+func TestFlexFloatUnmarshal(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		initial     float64
+		want        float64
+		wantInvalid bool
+	}{
+		// mbps and rtt are plain numbers.
+		{name: "float", input: `6.1`, want: 6.1},
+		{name: "integer", input: `100`, want: 100},
+		// vRstats switches to strings while the decoder is running.
+		{name: "float string", input: `"100.000"`, want: 100},
+		{name: "integer string", input: `"1300"`, want: 1300},
+		{name: "small string", input: `"0.119"`, want: 0.119},
+		{name: "empty string", input: `""`, initial: 3, want: 0},
+		{name: "null keeps value", input: `null`, initial: 3, want: 3},
+		{name: "word", input: `"playout_buf"`, initial: 3, want: 3, wantInvalid: true},
+		{name: "nan", input: `"NaN"`, initial: 3, want: 3, wantInvalid: true},
+		{name: "boolean", input: `true`, initial: 3, want: 3, wantInvalid: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := flexFloat{Value: tt.initial}
+			if err := json.Unmarshal([]byte(tt.input), &got); err != nil {
+				t.Fatalf("Unmarshal(%s) returned error: %v", tt.input, err)
+			}
+			if got.Value != tt.want {
+				t.Errorf("Unmarshal(%s) = %v, want %v", tt.input, got.Value, tt.want)
+			}
+			if _, invalid := got.issue("key"); invalid != tt.wantInvalid {
+				t.Errorf("issue() reported %t, want %t", invalid, tt.wantInvalid)
+			}
+		})
+	}
+}
+
 func TestFlexBoolUnmarshal(t *testing.T) {
 	tests := []struct {
 		name        string
