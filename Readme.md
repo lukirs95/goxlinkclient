@@ -76,9 +76,30 @@ err := client.ConfigureEncoder(ctx, "X8A1111-E1",
 ```
 
 Units of remote systems are configured through the local system the same way.
+Links between units are always made on the decoder, also for a decoder on a
+remote system:
+
+```go
+// Let the remote decoder receive from the local encoder.
+err := client.ConfigureDecoder(ctx, "X8A2222-D2", xlinkclient.DecoderSender("X8A1111-E1"))
+```
+
 Further requests: `Start`, `Stop`, `ResetStats`, `CreateUnit`, `DeleteUnit`,
 `ConfigureInterface`, `ConfigurePTP`, `ConfigureNMOS`, `ConfigureDNS`,
 `ConfigureTrunk`, `CreateTrunk`, `SetManualIP` and more.
+
+## Integration tests
+
+`integration_test.go` runs against a real system and **creates, changes and
+deletes units** on it. It never touches eth0 and switches off outgoing 2110
+streams of a peer decoder only temporarily, restoring them afterwards.
+Credentials are read from the environment or a git-ignored `.env` file:
+
+```sh
+XLINK_ADDR=host XLINK_PEER=X8A... go test -tags integration -run Device -v -count=1 .
+```
+
+## Notes
 
 The SMPTE ST 2110 capable interfaces depend on the hardware (X8: eth6/eth7, X4:
 eth2/eth3); the device itself reports which of its enabled interfaces support

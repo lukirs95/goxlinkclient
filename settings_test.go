@@ -41,7 +41,6 @@ func TestEncoderSettingsWireFormat(t *testing.T) {
 		EncoderAudio2110(Stream{}),
 		EncoderVideo2110Payload(96),
 		EncoderAudio2110Channels(16),
-		EncoderReceiver(""),
 		EncoderUplink(""),
 		EncoderResendDelay(20*time.Millisecond),
 	)
@@ -54,7 +53,7 @@ func TestEncoderSettingsWireFormat(t *testing.T) {
 		"a2110NetPri": "none", "a2110NetPriEnabled": false,
 		"a2110NetPriIp": "", "a2110NetPriPort": "0",
 		"v2110RTPpayload": "96", "a2110SDPaCh": "16",
-		"receiver": "none", "ethSoMark": "auto", "diffRtt": 20
+		"ethSoMark": "auto", "diffRtt": 20
 	}`)
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("values =\n%v\nwant\n%v", got, want)

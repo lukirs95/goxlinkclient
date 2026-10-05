@@ -492,7 +492,32 @@ Start/Stop wurde nicht mitgeschnitten (vermutlich `start`/`stop` wie bei Enc/Dec
 
 Die NDI-Quellenauswahl (`ndiSource`) wurde nicht gesetzt (`ndifind` war leer).
 
-### 4.7 Im Mitschnitt nicht vorgekommen
+### 4.7 Erkenntnisse aus dem Integrationstest (FW 1.8.4.5)
+
+Gegen ein zweites Gerät mit der Library selbst getestet (`integration_test.go`):
+
+- **Verknüpfen nur am Decoder:** `config {receiver:…}` an einem Encoder wird mit
+  `response:true` beantwortet, aber ignoriert (der Encoder behält `receiver:"none"`).
+  Verknüpft wird über `sender` am Decoder. Das gilt auch für Decoder auf Remote-Systemen:
+  `config` mit lokaler `sysid` und der Remote-Decoder-ID setzt dessen `sender`, und der
+  Encoder übernimmt den Receiver automatisch. `sender:"none"` löst die Verknüpfung auf
+  beiden Seiten.
+- **`configEth` an deaktivierten Interfaces** schlägt mit dem JSON-RPC-Fehler
+  `"eth error"` fehl, auch mit nur einem Key. Erst `enabled:true` setzen. Mehrere Keys in
+  einem `configEth` (z. B. `igmp` + `nmos`) sind verifiziert.
+- **`start` ohne freie Lizenz:** Ein Decoder-Start wird mit `response:true` beantwortet,
+  der Decoder läuft aber nicht, wenn alle Decoder-Lizenzen belegt sind
+  (`vLicUsedDec == vLicDec` in `systems.stats`). Der XLink-Tunnel wird trotzdem aufgebaut.
+- **Neue Encoder starten nicht ohne Weiteres:** Ein neu angelegter Encoder mit SDI-Eingang
+  ohne Signal und `vNoS` = Bars lief trotz verknüpftem, laufendem Remote-Decoder nicht an
+  (`running:false` in `systems.update`, `state.subscribe` und `localStats`). Die Ursache ist
+  offen.
+- Neu angelegte Units haben `vCard:"0"` (kein Ein-/Ausgang) und keine aktiven
+  2110-Streams.
+- `resetSSRC` an einem gestoppten Encoder liefert `-32603 Internal error`.
+- H.265 begrenzt die Bitrate auf 10 Mbps (bestätigt).
+
+### 4.8 Im Mitschnitt nicht vorgekommen
 
 Encoder: `name`, `receiver`, `vNoS`, Source-Input (`vCard`), Audio-Enabled, Sec-Netz (`*NetSec*`).
 Decoder: `sender`, `vBnoInText`, `vBnoInFormatOn`/`NameOn`/`SysNameOn`, `sdilevelA`,

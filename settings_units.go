@@ -139,11 +139,6 @@ func EncoderName(name string) EncoderSetting { return set[EncoderSetting]("name"
 // EncoderAutoStart starts the encoder automatically after boot.
 func EncoderAutoStart(on bool) EncoderSetting { return set[EncoderSetting]("autoStart", on) }
 
-// EncoderReceiver selects the decoder to send to. An empty ID clears it.
-func EncoderReceiver(id UnitID) EncoderSetting {
-	return set[EncoderSetting]("receiver", unitRef(id))
-}
-
 // EncoderBarsStandard sets the video standard of the test pattern.
 func EncoderBarsStandard(m VideoMode) EncoderSetting {
 	return set[EncoderSetting]("vModeB", string(m))
@@ -298,6 +293,11 @@ func DecoderName(name string) DecoderSetting { return set[DecoderSetting]("name"
 func DecoderAutoStart(on bool) DecoderSetting { return set[DecoderSetting]("autoStart", on) }
 
 // DecoderSender selects the encoder to receive from. An empty ID clears it.
+//
+// Links between units are always made on the decoder: the device ignores the
+// "receiver" key of an encoder. To link a local encoder to a decoder of a
+// remote system, configure the remote decoder with the local encoder as its
+// sender.
 func DecoderSender(id UnitID) DecoderSetting { return set[DecoderSetting]("sender", unitRef(id)) }
 
 // DecoderAVSync enables audio/video synchronisation.
