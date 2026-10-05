@@ -4,7 +4,7 @@ Reverse-Engineering-Protokoll des Web-Frontends (PrimeVue-App) eines X8-R2-Syste
 Firmware **1.8.4.6**. Abschnitte 1–3 stammen aus einer rein lesenden Erkundung (Dialoge
 geöffnet, Tabs gewechselt). Abschnitt 4 stammt aus einem Mitschnitt, bei dem ein Remote-Sender
 und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden, Abschnitt 5
-aus einem Durchlauf durch die Systemeinstellungen, SRT in 4.5, Netzwerk (`configEth`) in 5. IP-Einstellungen und Trunks fehlen
+aus einem Durchlauf durch die Systemeinstellungen, SRT in 4.5, Netzwerk (`configEth`, Trunks) in 5. IP-Einstellungen fehlen
 noch (siehe [Offene Punkte](#offene-punkte)).
 
 Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
@@ -264,7 +264,7 @@ prüfen statt ETH-Namen fest zu verdrahten.
 ### 3.6 Netzwerk › XLink Trunk
 
 „XLink Layer 2 Trunk“ – Liste (entspricht `l2s[]`) + „Add New“. Pro Trunk ist die MTU
-überschreibbar, Default ist `mtuTrunk`.
+überschreibbar, Default ist `mtuTrunk`. Die Schreib-Requests stehen in [5.1](#51-xlink-layer-2-trunks).
 
 ### 3.7 System
 
@@ -432,6 +432,45 @@ Gruppe geschickt.
 Das Delta ist wie bei `sys.subscribe` gruppiert (`ptp`, `nmos`, `dns`, `mtuTrunk`) und
 enthält jedes Mal zusätzlich `sysVer` (u. a. die Peer-Liste).
 
+### 5.1 XLink Layer 2 Trunks
+
+Trunk-IDs: `<sysid>-L2S<n>`. Ein Trunk verbindet ETHs mehrerer Systeme; dafür muss auf
+**jedem** beteiligten System ein Trunk existieren, der Remote-Trunk wird dann zum lokalen
+hinzugefügt.
+
+| Methode | UI | `params` | Bemerkung |
+|---|---|---|---|
+| `newL2S` | Network › XLink Trunk › Add New | `{sysid:"<Zielsystem>"}` | **`sysid` = System, auf dem der Trunk entsteht** – auch ein Remote-System. Antwort `{method, sysid, id:"local", response:true}` **ohne Trunk-ID** (kommt über `systems.update`) |
+| `configL2S` | Trunk-Einstellungen | `{sysid?, id:"<trunk id>", values:{<key>:<wert>}}` | ein Key pro Request; die UI lässt `sysid` oft weg (nur bei `master`/`delPeer` gesetzt) – `id` reicht offenbar |
+| `startL2S` / `stopL2S` | Start/Stop | `{sysid, id}` | |
+| `deleteL2S` | Trunk löschen | `{sysid:"<Besitzer-System>", id}` | |
+
+**`configL2S`-Keys**
+
+| Key | Typ | Bedeutung |
+|---|---|---|
+| `eth` | string | ETH, auf dem der Trunk liegt (z. B. `"eth3"`) |
+| `master` | bool | Master-Seite des Trunks |
+| `l2mtuOn`, `l2mtu` | bool, number | eigene MTU statt `mtuTrunk` (z. B. 1450) |
+| `autoStart` | bool | |
+| `encryption` | bool | (hier korrekt geschrieben, anders als SRT `encrytion`) |
+| `multicast`, `rmcast` | bool | |
+| `addPeer` | string | Remote-Trunk-ID hinzufügen, z. B. `"<remote>-L2S1"` |
+| `delPeer` | string | Remote-Trunk-ID entfernen |
+
+> Im alten Dump (`example/systemFull.go`) hat `l2s[].values` die Keys `autoStart`,
+> `encryption`, `eth`, `master`, `masterId`, `multicast`, `rmcast` sowie `l2s[].members`.
+> Neu sind `l2mtuOn`/`l2mtu`. `addPeer`/`delPeer` sind reine Schreib-Kommandos.
+
+Beobachteter Ablauf: `newL2S` lokal → `configL2S eth/master/…` → `newL2S` auf dem Remote →
+`configL2S` Remote `master:false`, `eth` → lokal `addPeer:"<remote trunk>"` → `startL2S` →
+`stopL2S` → `delPeer` → `deleteL2S` (lokal, dann Remote).
+
+Nebenbei: Vor dem Anlegen wurde eth3 per `configEth enabled:true` aktiviert. Das Feld
+`backup:false` wurde gesendet und eth3 danach wieder deaktiviert.
+
+### 5.2 Sonstiges
+
 **`configEth` mit `response:false`:** `{eth:"eth3", defaultLan:false}` wurde mit
 `response:false` abgelehnt, ohne JSON-RPC-Error (kurz zuvor war `defaultLan` auf eth2 gesetzt
 worden). Clients müssen also neben `error` auch `result.response` prüfen. Die Library tut das
@@ -451,7 +490,7 @@ HTTP (vor diesem Durchlauf nicht mitgeschnitten).
 
 ## Offene Punkte
 
-- **Netzwerk:** ETH-IP/DHCP/DNS-Änderungen (vermutlich ebenfalls `configEth`) und XLink-Trunks (`l2s`) sind noch nicht mitgeschnitten; ebenso „Add New“ für SRT/NDI.
+- **Netzwerk:** ETH-IP/DHCP/DNS-Änderungen (vermutlich ebenfalls `configEth`) sind noch nicht mitgeschnitten – im zweiten Netzwerk-Durchlauf kam aus dem mitgeschnittenen Tab keine solche Nachricht. Ebenso „Add New“ für SRT/NDI.
 - System: Profile, User, Admin Proxy, Version/Update, License, weitere NMOS-Felder
   (Domain, Registry, Labels) sowie PTP-Werte ohne UI.
 - Die in 4.6 genannten Encoder-/Decoder-Felder fehlen noch.
