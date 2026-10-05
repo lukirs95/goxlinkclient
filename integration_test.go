@@ -395,6 +395,13 @@ func TestDeviceChanges(t *testing.T) {
 			u, _ := peerUnit(p.Encoders, sender.ID)
 			return dec.Sender.ID == sender.ID && u.Linked == id
 		})
+		// Units can only be started once the XLink connection is up.
+		if !d.waitRunning(30*time.Second, func(sys System) bool {
+			dec, _ := sys.Decoder(id)
+			return dec.XLink && dec.Sender.Connected
+		}) {
+			t.Fatal("XLink connection did not come up")
+		}
 
 		if err := d.c.Start(ctx, sender.ID); err != nil {
 			t.Fatalf("Start(%s): %v", sender.ID, err)
@@ -446,8 +453,8 @@ func TestDeviceChanges(t *testing.T) {
 
 	t.Run("encoder linked to peer decoder", func(t *testing.T) {
 		id := d.createUnit(t, ctx, UnitXLinkEncoder)
-		// A new encoder has no input selected and does not run without one.
-		// An SDI input without signal is enough if bars are sent instead.
+		// A new encoder has no input selected; give it an SDI input that
+		// sends bars without signal.
 		err := d.c.ConfigureEncoder(ctx, id,
 			EncoderName("goxlinkclient test"),
 			EncoderBitrate(5),
@@ -522,6 +529,14 @@ func TestDeviceChanges(t *testing.T) {
 			e, _ := sys.Encoder(id)
 			return e.Receiver.ID == receiver.ID
 		})
+		// Units can only be started once the XLink connection is up (the
+		// green dot in the web UI), which takes a few seconds.
+		if !d.waitRunning(30*time.Second, func(sys System) bool {
+			e, _ := sys.Encoder(id)
+			return e.XLink && e.Receiver.Connected
+		}) {
+			t.Fatal("XLink connection did not come up")
+		}
 
 		if err := d.c.Start(ctx, receiver.ID); err != nil {
 			t.Fatalf("Start(%s): %v", receiver.ID, err)

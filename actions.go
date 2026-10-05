@@ -3,6 +3,12 @@ package xlinkclient
 import "context"
 
 // Start starts a unit. The unit may belong to a remote system.
+//
+// Linked XLink units can only be started once their connection is up, which
+// takes a few seconds after linking (the green dot in the web UI; XLink and
+// the counterpart's Connected in the snapshot). An earlier start is accepted
+// by the device but has no effect. A decoder does not run without a free
+// decoder license either, although the start is accepted.
 func (c *Client) Start(ctx context.Context, id UnitID) error {
 	return c.callUnit(ctx, methodStart, c.SystemID(), string(id), nil)
 }

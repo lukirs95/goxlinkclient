@@ -508,10 +508,11 @@ Gegen ein zweites Gerät mit der Library selbst getestet (`integration_test.go`)
 - **`start` ohne freie Lizenz:** Ein Decoder-Start wird mit `response:true` beantwortet,
   der Decoder läuft aber nicht, wenn alle Decoder-Lizenzen belegt sind
   (`vLicUsedDec == vLicDec` in `systems.stats`). Der XLink-Tunnel wird trotzdem aufgebaut.
-- **Neue Encoder starten nicht ohne Weiteres:** Ein neu angelegter Encoder mit SDI-Eingang
-  ohne Signal und `vNoS` = Bars lief trotz verknüpftem, laufendem Remote-Decoder nicht an
-  (`running:false` in `systems.update`, `state.subscribe` und `localStats`). Die Ursache ist
-  offen.
+- **Starten erst nach Verbindungsaufbau:** Nach dem Verknüpfen braucht die XLink-Verbindung
+  einige Sekunden (grüner Punkt in der UI; `values.xLink:true` und
+  `receiver.values.connected` bzw. `sender.values.connected`). Ein `start` davor wird mit
+  `response:true` beantwortet, hat aber keine Wirkung. Danach starten Encoder und Decoder
+  sofort.
 - Neu angelegte Units haben `vCard:"0"` (kein Ein-/Ausgang) und keine aktiven
   2110-Streams.
 - `resetSSRC` an einem gestoppten Encoder liefert `-32603 Internal error`.
