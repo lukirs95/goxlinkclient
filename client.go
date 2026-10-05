@@ -51,19 +51,16 @@ func NewClient(ip string, opts ...clientOption) *Client {
 	return c
 }
 
-type Update struct {
-	*Client
-	XLink
-}
-
-type UpdateChan chan Update
+type UpdateChan chan System
 type StatsChan chan Stats
 
 // Connect opens the connection to the xlink websocket. It is blocking!
-// You MUST read from updateChan and statsChan.
+// You MUST read from updateChan and statsChan. Every message from the device
+// produces a complete snapshot of the system on updateChan.
 // If you cancel the context, the connection is closed.
 func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan StatsChan) error {
-	responseChan := make(jsonrpc.Subscription)
+	fullChan := make(jsonrpc.Subscription)
+	deltaChan := make(jsonrpc.Subscription)
 	statisticsChan := make(jsonrpc.Subscription)
 
 	var wg sync.WaitGroup
@@ -73,33 +70,44 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		var st state
 		for {
 			select {
 			case <-withCancel.Done():
 				return
-			case update := <-responseChan:
-				var fullXLink XLink
-				if err := json.Unmarshal(update.Params, &fullXLink); err != nil {
-					c.logger.Error("failed to unmarshal update message", slog.Any("error", err))
-					return
+			case full := <-fullChan:
+				if err := st.applyFull(full.Params); err != nil {
+					c.logger.Error("failed to apply full state", slog.Any("error", err))
+					continue
 				}
-				updateChan <- Update{
-					Client: c,
-					XLink:  fullXLink,
+				c.publish(withCancel, &st, updateChan)
+			case delta := <-deltaChan:
+				gap, err := st.applyUpdate(delta.Params)
+				if err != nil {
+					c.logger.Error("failed to apply update", slog.Any("error", err))
+					continue
 				}
+				if gap {
+					c.logger.Warn("updates were lost, state may be incomplete until reconnect")
+				}
+				c.publish(withCancel, &st, updateChan)
 			case stats := <-statisticsChan:
 				var rawStats Stats
 				if err := json.Unmarshal(stats.Params, &rawStats); err != nil {
 					c.logger.Error("failed to unmarshal statistics message", slog.Any("error", err))
+					continue
+				}
+				select {
+				case statsChan <- rawStats:
+				case <-withCancel.Done():
 					return
 				}
-				statsChan <- rawStats
 			}
 		}
 	}()
 
 	c.logger.Info("connect to xlink")
-	err := c.connect(ctx, responseChan, statisticsChan)
+	err := c.connect(ctx, fullChan, deltaChan, statisticsChan)
 	if err != nil {
 		c.logger.Error("unexpected closed connection", slog.Any("error", err))
 	} else {
@@ -110,9 +118,22 @@ func (c *Client) Connect(ctx context.Context, updateChan UpdateChan, statsChan S
 	return err
 }
 
-func (c *Client) connect(ctx context.Context, responseChan jsonrpc.Subscription, statsChan jsonrpc.Subscription) error {
-	c.jrpc.SubscribeMethod(ctx, "systems.full", responseChan)
-	c.jrpc.SubscribeMethod(ctx, "systems.update", responseChan)
+// publish sends a snapshot of st to updateChan and logs values that could not
+// be decoded.
+func (c *Client) publish(ctx context.Context, st *state, updateChan UpdateChan) {
+	sys, issues := st.snapshot()
+	for _, issue := range issues {
+		c.logger.Warn("ignored invalid value from device", slog.String("value", issue.String()))
+	}
+	select {
+	case updateChan <- sys:
+	case <-ctx.Done():
+	}
+}
+
+func (c *Client) connect(ctx context.Context, fullChan, deltaChan, statsChan jsonrpc.Subscription) error {
+	c.jrpc.SubscribeMethod(ctx, "systems.full", fullChan)
+	c.jrpc.SubscribeMethod(ctx, "systems.update", deltaChan)
 	c.jrpc.SubscribeMethod(ctx, "systems.stats", statsChan)
 	notifyAuth := make(jsonrpc.Subscription)
 	c.jrpc.SubscribeMethod(ctx, "notify.auth", notifyAuth)

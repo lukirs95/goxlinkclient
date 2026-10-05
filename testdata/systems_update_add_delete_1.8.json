@@ -1,0 +1,395 @@
+[
+ {
+  "sysid": "X8A1001",
+  "dataid": 770,
+  "data": {
+   "local": {
+    "sysST": "2026-10-05 09:00:22 +0000",
+    "osST": "2026-10-05 08:59:49 +0000",
+    "enc": [
+     {
+      "id": "X8A1001-E6",
+      "type": 1,
+      "enabled": true,
+      "name": "ENC-56",
+      "nmosId": "00000000-0000-4000-8000-000000000059",
+      "st2110": false,
+      "config": true,
+      "values": {
+       "vIn": "No Signal",
+       "aIn": "No Signal",
+       "vHDR": "0",
+       "vBitInit": 0,
+       "vModeName": "Auto",
+       "vModeBName": "Auto",
+       "vCard": "0",
+       "vCardConn": "sdi",
+       "vTBR": 10,
+       "vCRFOn": false,
+       "vFEC": 2,
+       "vCodec": 1,
+       "aNmosId": "00000000-0000-4000-8000-000000000060",
+       "a2110NetPri": "none",
+       "a2110NetPriEnabled": false,
+       "a2110NetPriPort": 5002,
+       "a2110NetPriIp": "0.0.0.0",
+       "vNmosId": "00000000-0000-4000-8000-000000000061",
+       "v2110NetPri": "none",
+       "v2110NetPriEnabled": false,
+       "v2110NetPriPort": 5000,
+       "v2110NetPriIp": "0.0.0.0",
+       "ndiSource": "",
+       "ndiSourceName": "",
+       "ndiSourceCon": false,
+       "mPointSender": "none",
+       "xLink": false,
+       "xLinkp2p": false,
+       "running": false,
+       "startT": "2020-01-01 00:00:00 +0000"
+      },
+      "receiver": {
+       "id": "none",
+       "sysName": "",
+       "name": "",
+       "nmosId": "",
+       "st2110": false,
+       "config": true,
+       "values": {
+        "vIn": "No Signal",
+        "aIn": "No Signal",
+        "vOut": "No Signal",
+        "aOut": "No Signal",
+        "aInCh": "0",
+        "aInkHz": "0",
+        "vHDR": "0",
+        "vCard": "0",
+        "vCardConn": "",
+        "vModeName": "Auto",
+        "vBnoInOn": false,
+        "vBnoIn": 0,
+        "vBufferOn": false,
+        "vBuffer": 0,
+        "vFRCOn": false,
+        "aNmosId": "",
+        "a2110NetPri": "",
+        "a2110NetPriEnabled": false,
+        "a2110NetPriPort": "5002",
+        "a2110NetPriIp": "0.0.0.0",
+        "vNmosId": "",
+        "v2110NetPri": "",
+        "v2110NetPriEnabled": false,
+        "v2110NetPriPort": "5000",
+        "v2110NetPriIp": "0.0.0.0",
+        "vRef": false,
+        "avSync": false,
+        "avUnSync": 0,
+        "aSync": 0,
+        "connected": false,
+        "xLink": false,
+        "xLinkp2p": false,
+        "onLocalNet": false,
+        "running": false,
+        "startT": "2000-01-01 00:00:00 +0000"
+       }
+      }
+     }
+    ],
+    "network": {
+     "nets": [
+      {
+       "id": "eth0",
+       "linkTime": "2026-10-05 09:00:27 +0000"
+      },
+      {
+       "id": "eth1",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth2",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth3",
+       "linkTime": "2026-10-05 11:20:55 +0000"
+      },
+      {
+       "id": "eth6",
+       "linkTime": "2026-10-05 09:00:22 +0000"
+      }
+     ]
+    }
+   },
+   "remote": [
+    {
+     "lastSeenT": "2026-10-05 11:47:15 +0000",
+     "sysid": "X8A1008"
+    }
+   ]
+  }
+ },
+ {
+  "sysid": "X8A1001",
+  "dataid": 771,
+  "data": {
+   "local": {
+    "sysST": "2026-10-05 09:00:22 +0000",
+    "osST": "2026-10-05 08:59:49 +0000",
+    "dec": [
+     {
+      "id": "X8A1001-D6",
+      "type": 2,
+      "enabled": true,
+      "name": "DEC-57",
+      "nmosId": "00000000-0000-4000-8000-000000000062",
+      "st2110": false,
+      "config": true,
+      "values": {
+       "vIn": "No Signal",
+       "aIn": "No Signal",
+       "vOut": "No Signal",
+       "vHDR": 0,
+       "aOut": "No Signal",
+       "aInCh": "0",
+       "aInkHz": "0",
+       "vCard": "0",
+       "vCardConn": "sdi",
+       "vModeName": "Auto",
+       "vBnoInOn": true,
+       "vBnoIn": 60,
+       "vBufferOn": false,
+       "vBuffer": 1,
+       "aNmosId": "00000000-0000-4000-8000-000000000063",
+       "a2110NetPri": "none",
+       "a2110NetPriEnabled": false,
+       "a2110NetPriPort": 5002,
+       "a2110NetPriIp": "0.0.0.0",
+       "vNmosId": "00000000-0000-4000-8000-000000000064",
+       "v2110NetPri": "none",
+       "v2110NetPriEnabled": false,
+       "v2110NetPriPort": 5000,
+       "v2110NetPriIp": "0.0.0.0",
+       "vRef": false,
+       "vFRCOn": true,
+       "avSync": false,
+       "avUnSync": 0,
+       "xLink": false,
+       "xLinkp2p": false,
+       "running": false,
+       "startT": "2020-01-01 00:00:00 +0000",
+       "vFinBuffer": 0
+      },
+      "sender": {
+       "id": "none",
+       "sysName": "",
+       "name": "",
+       "nmosId": "",
+       "st2110": false,
+       "values": {
+        "vIn": "No Signal",
+        "aIn": "No Signal",
+        "vHDR": "0",
+        "vBitInit": "0",
+        "vModeName": "Auto",
+        "vModeBName": "Auto",
+        "vCard": "0",
+        "vCardConn": "",
+        "vTBR": 5,
+        "vCRFOn": false,
+        "vFEC": 1,
+        "vCodec": 1,
+        "aNmosId": "",
+        "a2110NetPri": "",
+        "a2110NetPriEnabled": false,
+        "a2110NetPriPort": "5002",
+        "a2110NetPriIp": "0.0.0.0",
+        "vNmosId": "",
+        "v2110NetPri": "",
+        "v2110NetPriEnabled": false,
+        "v2110NetPriPort": "5000",
+        "v2110NetPriIp": "0.0.0.0",
+        "ndiSource": "",
+        "ndiSourceName": "",
+        "ndiSourceCon": false,
+        "mPointSender": "none",
+        "connected": false,
+        "xLink": false,
+        "xLinkp2p": false,
+        "onLocalNet": false,
+        "running": false,
+        "startT": "2000-01-01 00:00:00 +0000"
+       }
+      }
+     }
+    ],
+    "network": {
+     "nets": [
+      {
+       "id": "eth0",
+       "linkTime": "2026-10-05 09:00:27 +0000"
+      },
+      {
+       "id": "eth1",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth2",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth3",
+       "linkTime": "2026-10-05 11:20:55 +0000"
+      },
+      {
+       "id": "eth6",
+       "linkTime": "2026-10-05 09:00:22 +0000"
+      }
+     ]
+    }
+   },
+   "remote": [
+    {
+     "lastSeenT": "2026-10-05 11:47:18 +0000",
+     "sysid": "X8A1008"
+    }
+   ]
+  }
+ },
+ {
+  "sysid": "X8A1001",
+  "dataid": 772,
+  "data": {
+   "local": {
+    "sysST": "2026-10-05 09:00:22 +0000",
+    "osST": "2026-10-05 08:59:49 +0000",
+    "dec": [
+     {
+      "id": "X8A1001-D6",
+      "enabled": false
+     }
+    ],
+    "network": {
+     "nets": [
+      {
+       "id": "eth0",
+       "linkTime": "2026-10-05 09:00:27 +0000"
+      },
+      {
+       "id": "eth1",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth2",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth3",
+       "linkTime": "2026-10-05 11:20:55 +0000"
+      },
+      {
+       "id": "eth6",
+       "linkTime": "2026-10-05 09:00:22 +0000"
+      }
+     ]
+    }
+   },
+   "remote": [
+    {
+     "lastSeenT": "2026-10-05 11:47:21 +0000",
+     "sysid": "X8A1008"
+    }
+   ]
+  }
+ },
+ {
+  "sysid": "X8A1001",
+  "dataid": 773,
+  "data": {
+   "local": {
+    "sysST": "2026-10-05 09:00:22 +0000",
+    "osST": "2026-10-05 08:59:49 +0000",
+    "dec": [
+     {
+      "id": "X8A1001-D6",
+      "delete": true
+     }
+    ],
+    "network": {
+     "nets": [
+      {
+       "id": "eth0",
+       "linkTime": "2026-10-05 09:00:27 +0000"
+      },
+      {
+       "id": "eth1",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth2",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth3",
+       "linkTime": "2026-10-05 11:20:55 +0000"
+      },
+      {
+       "id": "eth6",
+       "linkTime": "2026-10-05 09:00:22 +0000"
+      }
+     ]
+    }
+   },
+   "remote": [
+    {
+     "lastSeenT": "2026-10-05 11:47:22 +0000",
+     "sysid": "X8A1008"
+    }
+   ]
+  }
+ },
+ {
+  "sysid": "X8A1001",
+  "dataid": 774,
+  "data": {
+   "local": {
+    "sysST": "2026-10-05 09:00:22 +0000",
+    "osST": "2026-10-05 08:59:49 +0000",
+    "enc": [
+     {
+      "id": "X8A1001-E6",
+      "delete": true
+     }
+    ],
+    "network": {
+     "nets": [
+      {
+       "id": "eth0",
+       "linkTime": "2026-10-05 09:00:27 +0000"
+      },
+      {
+       "id": "eth1",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth2",
+       "linkTime": "2026-10-05 09:00:23 +0000"
+      },
+      {
+       "id": "eth3",
+       "linkTime": "2026-10-05 11:20:55 +0000"
+      },
+      {
+       "id": "eth6",
+       "linkTime": "2026-10-05 09:00:22 +0000"
+      }
+     ]
+    }
+   },
+   "remote": [
+    {
+     "lastSeenT": "2026-10-05 11:47:26 +0000",
+     "sysid": "X8A1008"
+    }
+   ]
+  }
+ }
+]

@@ -28,6 +28,10 @@ func TestFlexIntUnmarshal(t *testing.T) {
 		{name: "blank string", input: `"  "`, initial: 10501, want: 0},
 		// aSync was null in firmware 1.7 and a number in 1.8.
 		{name: "null keeps value", input: `null`, initial: 42, want: 42},
+		// systems.full reports the encoder bitrate (vTBR) as 25.0.
+		{name: "integral float", input: `25.0`, want: 25},
+		{name: "integral float string", input: `"5.0"`, want: 5},
+		{name: "integral float exponent", input: `1e3`, want: 1000},
 		// Invalid input keeps the previous value and is reported.
 		{name: "float", input: `1.5`, initial: 9, want: 9, wantInvalid: true},
 		{name: "float string", input: `"1.5"`, initial: 9, want: 9, wantInvalid: true},
