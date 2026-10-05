@@ -39,6 +39,21 @@ for u := range updates {
 `Run` returns when the connection ends; call it again to reconnect. See
 [example/main.go](example/main.go) for several systems with reconnects.
 
+## Errors
+
+A request rejected by the device returns a `*DeviceError` with the JSON-RPC
+code and message and the device's explanation:
+
+```go
+var devErr *xlinkclient.DeviceError
+if errors.As(err, &devErr) {
+	fmt.Println(devErr.Detail) // e.g. "video not running"
+	fmt.Println(devErr.Fields) // rejected config keys, e.g. map[vModeLock:...]
+}
+```
+
+Requests while the client is not connected return `ErrNotConnected`.
+
 ## Statistics
 
 With `WithStats(ch)` the client delivers a `Stats` value about every two

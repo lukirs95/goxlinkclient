@@ -624,13 +624,28 @@ func (s *state) applyFull(params json.RawMessage) error {
 	return nil
 }
 
+// errStaleUpdate is returned for an update that is not newer than the state,
+// e.g. one that was processed after a later systems.full.
+var errStaleUpdate = errors.New("xlinkclient: stale update ignored")
+
 // applyUpdate merges a systems.update message into the state. gap reports
-// whether messages were lost since the previous one, judged by dataid.
+// whether messages were lost since the previous one, judged by dataid. An
+// update whose dataid is not newer than the state is ignored and reported as
+// errStaleUpdate.
 func (s *state) applyUpdate(params json.RawMessage) (gap bool, err error) {
 	if !s.loaded {
 		return false, errNoState
 	}
+	var head struct {
+		DataID flexInt `json:"dataid"`
+	}
+	if err := json.Unmarshal(params, &head); err != nil {
+		return false, fmt.Errorf("xlinkclient: decode system message: %w", err)
+	}
 	prev := s.wire.DataID.Value
+	if head.DataID.Value <= prev {
+		return false, errStaleUpdate
+	}
 	if err := decodeParams(params, &s.wire); err != nil {
 		return false, err
 	}

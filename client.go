@@ -9,7 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	jsonrpc "github.com/lukirs95/gojsonrpc"
+	jsonrpc "github.com/lukirs95/gojsonrpc/v2"
 )
 
 // readLimit is the maximum size of a message from the device. It must hold
@@ -83,7 +83,7 @@ type Client struct {
 	logger         *slog.Logger
 	updatesOut     chan<- Update
 	statsOut       chan<- StatsUpdate
-	jrpc           *jsonrpc.JsonRPC
+	jrpc           *jsonrpc.Client
 	running        atomic.Bool
 	ready          atomic.Bool
 
@@ -99,7 +99,7 @@ type Client struct {
 func New(addr string, opts ...Option) *Client {
 	c := &Client{
 		addr:      addr,
-		jrpc:      jsonrpc.NewJsonRPC(),
+		jrpc:      jsonrpc.NewClient(),
 		readyWait: make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -203,54 +203,32 @@ func (c *Client) Run(ctx context.Context) error {
 	// systems.localStatsHistory is deliberately not subscribed; gojsonrpc
 	// drops notifications without subscriber.
 	for method, ch := range subs.byMethod() {
-		c.jrpc.SubscribeMethod(ctx, method, ch)
+		c.jrpc.Subscribe(ctx, method, ch)
 	}
 	defer func() {
 		for method := range subs.byMethod() {
-			c.jrpc.UnsubscribeMethod(method)
+			_ = c.jrpc.Unsubscribe(method)
 		}
 	}()
-
-	// gojsonrpc delivers notifications synchronously from its read loop and
-	// does not observe the context while doing so. Every subscription is
-	// therefore read until Connect has returned, not just until ctx is done;
-	// otherwise a notification arriving during shutdown blocks Connect forever.
-	connDone := make(chan struct{})
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		c.readLoop(connDone, subs, updates, stats)
+		c.readLoop(ctx, subs, updates, stats)
 	}()
 	go func() {
 		defer wg.Done()
 		if err := c.authenticate(ctx, subs.advice); err != nil {
 			cancel(err)
-		} else {
-			// Subscribe concurrently: the device announces itself again
-			// right after login, and that notification must be received
-			// below before gojsonrpc can deliver the subscribe response.
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				c.subscribeLocalStats(ctx)
-			}()
+			return
 		}
-		// The device may announce itself again after login.
-		for {
-			select {
-			case <-connDone:
-				return
-			case <-subs.advice:
-			}
-		}
+		c.subscribeLocalStats(ctx)
 	}()
 
 	c.logger.Info("connecting")
 	err := c.jrpc.Connect(ctx, fmt.Sprintf("ws://%s/jsonrpc", c.addr), nil)
 	authErr := context.Cause(ctx)
 	cancel(nil)
-	close(connDone)
 	wg.Wait()
 	c.setReady(false)
 
@@ -266,6 +244,13 @@ func (c *Client) Run(ctx context.Context) error {
 	return nil
 }
 
+// subscriptionBuffer is the capacity of every notification channel. gojsonrpc
+// drops a notification if its channel is full. The device sends a few messages
+// every couple of seconds and readLoop handles each within microseconds, so
+// the buffer only has to absorb bursts such as the messages right after
+// login. A lost systems.update is detected through dataid and logged.
+const subscriptionBuffer = 32
+
 // subscriptions are the notification channels of one connection.
 type subscriptions struct {
 	full       jsonrpc.Subscription
@@ -277,11 +262,11 @@ type subscriptions struct {
 
 func newSubscriptions() subscriptions {
 	return subscriptions{
-		full:       make(jsonrpc.Subscription),
-		delta:      make(jsonrpc.Subscription),
-		stats:      make(jsonrpc.Subscription),
-		localStats: make(jsonrpc.Subscription),
-		advice:     make(jsonrpc.Subscription),
+		full:       make(jsonrpc.Subscription, subscriptionBuffer),
+		delta:      make(jsonrpc.Subscription, subscriptionBuffer),
+		stats:      make(jsonrpc.Subscription, subscriptionBuffer),
+		localStats: make(jsonrpc.Subscription, subscriptionBuffer),
+		advice:     make(jsonrpc.Subscription, subscriptionBuffer),
 	}
 }
 
@@ -309,8 +294,8 @@ func (c *Client) subscribeLocalStats(ctx context.Context) {
 }
 
 // readLoop merges system messages into the state, publishes snapshots and
-// forwards statistics until done is closed.
-func (c *Client) readLoop(done <-chan struct{}, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate]) {
+// forwards statistics until ctx is done.
+func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate]) {
 	var (
 		st     state
 		health Health
@@ -328,52 +313,87 @@ func (c *Client) readLoop(done <-chan struct{}, subs subscriptions, updates *lat
 		}
 	}
 
+	handleFull := func(n jsonrpc.Notification) {
+		if err := st.applyFull(n.Params); err != nil {
+			c.logger.Error("failed to apply full state", slog.Any("error", err))
+			return
+		}
+		c.publish(&st, updates)
+	}
+	handleDelta := func(n jsonrpc.Notification) {
+		gap, err := st.applyUpdate(n.Params)
+		switch {
+		case errors.Is(err, errStaleUpdate):
+			c.logger.Debug("ignored stale update")
+			return
+		case err != nil:
+			c.logger.Error("failed to apply update", slog.Any("error", err))
+			return
+		case gap:
+			c.logger.Warn("updates were lost, state may be incomplete until reconnect")
+		}
+		c.publish(&st, updates)
+	}
+	handleSystemStats := func(n jsonrpc.Notification) {
+		h, p, issues, err := decodeSystemStats(n.Params)
+		if err != nil {
+			c.logger.Error("failed to decode system statistics", slog.Any("error", err))
+			return
+		}
+		logStatsIssues(issues)
+		health, peers = h, p
+	}
+	handleLocalStats := func(n jsonrpc.Notification) {
+		ls, issues, err := decodeLocalStats(n.Params)
+		if err != nil {
+			c.logger.Error("failed to decode statistics", slog.Any("error", err))
+			return
+		}
+		logStatsIssues(issues)
+		if stats != nil {
+			stats.put(StatsUpdate{Client: c, Stats: Stats{
+				System:     ls.System,
+				Time:       ls.Time,
+				Health:     health,
+				Interfaces: ls.Interfaces,
+				Encoders:   ls.Encoders,
+				Decoders:   ls.Decoders,
+				Peers:      slices.Clone(peers),
+			}})
+		}
+	}
+
+	// Each method has its own channel and select picks among ready channels
+	// at random, so the arrival order across methods is lost. A pending
+	// systems.full is therefore applied before an update, and pending system
+	// health before unit statistics. Updates older than the state are ignored
+	// by applyUpdate.
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return
-		case full := <-subs.full:
-			if err := st.applyFull(full.Params); err != nil {
-				c.logger.Error("failed to apply full state", slog.Any("error", err))
-				continue
-			}
-			c.publish(&st, updates)
-		case delta := <-subs.delta:
-			gap, err := st.applyUpdate(delta.Params)
-			if err != nil {
-				c.logger.Error("failed to apply update", slog.Any("error", err))
-				continue
-			}
-			if gap {
-				c.logger.Warn("updates were lost, state may be incomplete until reconnect")
-			}
-			c.publish(&st, updates)
-		case msg := <-subs.stats:
-			h, p, issues, err := decodeSystemStats(msg.Params)
-			if err != nil {
-				c.logger.Error("failed to decode system statistics", slog.Any("error", err))
-				continue
-			}
-			logStatsIssues(issues)
-			health, peers = h, p
-		case msg := <-subs.localStats:
-			ls, issues, err := decodeLocalStats(msg.Params)
-			if err != nil {
-				c.logger.Error("failed to decode statistics", slog.Any("error", err))
-				continue
-			}
-			logStatsIssues(issues)
-			if stats != nil {
-				stats.put(StatsUpdate{Client: c, Stats: Stats{
-					System:     ls.System,
-					Time:       ls.Time,
-					Health:     health,
-					Interfaces: ls.Interfaces,
-					Encoders:   ls.Encoders,
-					Decoders:   ls.Decoders,
-					Peers:      slices.Clone(peers),
-				}})
-			}
+		case n := <-subs.full:
+			handleFull(n)
+		case n := <-subs.delta:
+			drain(subs.full, handleFull)
+			handleDelta(n)
+		case n := <-subs.stats:
+			handleSystemStats(n)
+		case n := <-subs.localStats:
+			drain(subs.stats, handleSystemStats)
+			handleLocalStats(n)
+		}
+	}
+}
+
+// drain handles every notification already waiting in ch without blocking.
+func drain(ch jsonrpc.Subscription, handle func(jsonrpc.Notification)) {
+	for {
+		select {
+		case n := <-ch:
+			handle(n)
+		default:
+			return
 		}
 	}
 }

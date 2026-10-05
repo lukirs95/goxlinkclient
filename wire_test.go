@@ -344,6 +344,30 @@ func TestUpdateGapAndOrder(t *testing.T) {
 	}
 }
 
+func TestStaleUpdateIgnored(t *testing.T) {
+	// Notifications of different methods may be processed out of order. An
+	// update that is not newer than the state must not change it.
+	var st state
+	if err := st.applyFull([]byte(`{"dataid":5,"data":{"local":{"sysid":"X8A1001","name":"new"}}}`)); err != nil {
+		t.Fatal(err)
+	}
+	for _, stale := range []string{
+		`{"dataid":5,"data":{"local":{"name":"same id"}}}`,
+		`{"dataid":3,"data":{"local":{"name":"older"}}}`,
+	} {
+		if _, err := st.applyUpdate([]byte(stale)); !errors.Is(err, errStaleUpdate) {
+			t.Errorf("applyUpdate(%s) = %v, want errStaleUpdate", stale, err)
+		}
+	}
+	if sys := mustSnapshot(t, &st); sys.Name != "new" {
+		t.Errorf("Name = %q, want %q", sys.Name, "new")
+	}
+	mustApplyUpdate(t, &st, []byte(`{"dataid":6,"data":{"local":{"name":"newer"}}}`))
+	if sys := mustSnapshot(t, &st); sys.Name != "newer" {
+		t.Errorf("Name = %q, want %q", sys.Name, "newer")
+	}
+}
+
 func TestUpdateForUnknownElement(t *testing.T) {
 	// A delta may reference a unit that is not known, e.g. when it was created
 	// while updates were lost. The partial element is added and removed again

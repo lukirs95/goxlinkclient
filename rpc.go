@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	jsonrpc "github.com/lukirs95/gojsonrpc"
+	jsonrpc "github.com/lukirs95/gojsonrpc/v2"
 )
 
 // JSON-RPC methods sent by the client.
@@ -45,15 +45,47 @@ const (
 // and authenticated.
 var ErrNotConnected = errors.New("xlinkclient: not connected")
 
-// DeviceError is returned when the device rejects a request without a
-// transport error, i.e. it answers with "response": false.
+// DeviceError is returned when the device rejects a request, either with a
+// JSON-RPC error or by answering "response": false.
 type DeviceError struct {
 	// Method is the JSON-RPC method of the rejected request.
 	Method string
+	// Code and Message are the JSON-RPC error, e.g. -32603 "Internal error".
+	// They are zero if the device answered "response": false.
+	Code    int
+	Message string
+	// Detail is the device's explanation of a failed action, e.g.
+	// "video not running".
+	Detail string
+	// Fields maps each rejected key of a config request to the reason, e.g.
+	// "vModeLock": "Video Mode auto Not supported for Card 12".
+	Fields map[string]string
 }
 
 func (e *DeviceError) Error() string {
-	return fmt.Sprintf("xlinkclient: device rejected %s", e.Method)
+	msg := "xlinkclient: device rejected " + e.Method
+	if e.Message != "" {
+		msg += ": " + e.Message
+	}
+	if detail := (errorData{Message: e.Detail, Fields: e.Fields}).String(); detail != "" {
+		msg += " (" + detail + ")"
+	}
+	return msg
+}
+
+// deviceError converts a JSON-RPC error of the device.
+func deviceError(method jsonrpc.Method, rpcErr *jsonrpc.Error) *DeviceError {
+	var data errorData
+	if len(rpcErr.Data) > 0 {
+		_ = data.UnmarshalJSON(rpcErr.Data)
+	}
+	return &DeviceError{
+		Method:  string(method),
+		Code:    int(rpcErr.Code),
+		Message: rpcErr.Message,
+		Detail:  data.Message,
+		Fields:  data.Fields,
+	}
 }
 
 // field is one key of a request's "values" object.
@@ -92,6 +124,10 @@ func (c *Client) call(ctx context.Context, method jsonrpc.Method, params any) er
 		return ErrNotConnected
 	}
 	raw, err := c.jrpc.SendRequest(ctx, method, params)
+	var rpcErr *jsonrpc.Error
+	if errors.As(err, &rpcErr) {
+		return deviceError(method, rpcErr)
+	}
 	if err != nil {
 		return fmt.Errorf("xlinkclient: %s: %w", method, err)
 	}

@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	jsonrpc "github.com/lukirs95/gojsonrpc"
+	jsonrpc "github.com/lukirs95/gojsonrpc/v2"
 )
 
 // authTimeout is how long to wait for the device to announce itself after the
@@ -55,6 +55,10 @@ func (c *Client) authenticate(ctx context.Context, advice jsonrpc.Subscription) 
 	c.mu.Unlock()
 
 	raw, err := c.jrpc.SendRequest(ctx, methodAuth, authParams{Auth: true, UserID: c.user, Password: c.password})
+	var rpcErr *jsonrpc.Error
+	if errors.As(err, &rpcErr) {
+		return fmt.Errorf("%w: %w", ErrAuthFailed, deviceError(methodAuth, rpcErr))
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil

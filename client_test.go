@@ -33,7 +33,10 @@ type fakeDevice struct {
 	systemStats []byte
 	localStats  []byte
 	reject      map[string]bool
-	requests    chan request
+	// rpcErrors maps a method to the JSON-RPC error object it is answered
+	// with.
+	rpcErrors map[string]string
+	requests  chan request
 	// statsSubscribe receives the params of localStats.subscribe.
 	statsSubscribe chan json.RawMessage
 }
@@ -47,6 +50,7 @@ func newFakeDevice(t *testing.T, password string) *fakeDevice {
 		systemStats:    readFixture(t, "stats_system_1.8.json"),
 		localStats:     readFixture(t, "stats_local_1.8.json"),
 		reject:         map[string]bool{},
+		rpcErrors:      map[string]string{},
 		requests:       make(chan request, 16),
 		statsSubscribe: make(chan json.RawMessage, 1),
 	}
@@ -123,6 +127,13 @@ func (d *fakeDevice) serve(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		d.requests <- req
+		if rpcErr, ok := d.rpcErrors[req.Method]; ok {
+			msg := map[string]any{"jsonrpc": "2.0", "error": json.RawMessage(rpcErr), "id": req.ID}
+			if err := wsjson.Write(ctx, conn, msg); err != nil {
+				return
+			}
+			continue
+		}
 		if err := respond(req.ID, map[string]any{"method": req.Method, "response": !d.reject[req.Method]}); err != nil {
 			return
 		}
@@ -273,6 +284,44 @@ func TestClientEndToEnd(t *testing.T) {
 	if err := c.Start(context.Background(), "X8A1001-E1"); !errors.Is(err, ErrNotConnected) {
 		t.Errorf("Start after Run = %v, want ErrNotConnected", err)
 	}
+}
+
+func TestDeviceErrorDetails(t *testing.T) {
+	d := newFakeDevice(t, "secret")
+	// Error objects as captured from the device.
+	d.rpcErrors["resetSSRC"] = `{"code":-32603,"message":"Internal error","data":"video not running"}`
+	d.rpcErrors["config"] = `{"code":-32603,"message":"Internal error",` +
+		`"data":{"vModeLock":"Video Mode auto Not supported for Card 12"}}`
+	c, _, stop := startClient(t, d, "secret")
+	defer func() { _ = stop() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := c.WaitReady(ctx); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+
+	err := c.ResetVideoBuffer(ctx, "X8A1001-E1")
+	var devErr *DeviceError
+	if !errors.As(err, &devErr) {
+		t.Fatalf("ResetVideoBuffer = %v, want DeviceError", err)
+	}
+	if devErr.Method != "resetSSRC" || devErr.Code != -32603 || devErr.Message != "Internal error" || devErr.Detail != "video not running" {
+		t.Errorf("DeviceError = %+v", devErr)
+	}
+	if want := "xlinkclient: device rejected resetSSRC: Internal error (video not running)"; err.Error() != want {
+		t.Errorf("Error() = %q, want %q", err.Error(), want)
+	}
+	d.nextRequest(t)
+
+	err = c.ConfigureEncoder(ctx, "X8A1001-E1", EncoderVideoLock(VideoModeAuto))
+	if !errors.As(err, &devErr) {
+		t.Fatalf("ConfigureEncoder = %v, want DeviceError", err)
+	}
+	if got := devErr.Fields["vModeLock"]; got != "Video Mode auto Not supported for Card 12" || devErr.Detail != "" {
+		t.Errorf("DeviceError = %+v", devErr)
+	}
+	d.nextRequest(t)
 }
 
 func TestStatsEndToEnd(t *testing.T) {
