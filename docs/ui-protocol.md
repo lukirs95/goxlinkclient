@@ -4,7 +4,7 @@ Reverse-Engineering-Protokoll des Web-Frontends (PrimeVue-App) eines X8-R2-Syste
 Firmware **1.8.4.6**. Abschnitte 1–3 stammen aus einer rein lesenden Erkundung (Dialoge
 geöffnet, Tabs gewechselt). Abschnitt 4 stammt aus einem Mitschnitt, bei dem ein Remote-Sender
 und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden, Abschnitt 5
-aus einem Durchlauf durch die Systemeinstellungen. SRT- und Netzwerk-Schreibrequests fehlen
+aus einem Durchlauf durch die Systemeinstellungen, SRT in 4.5. Netzwerk-Schreibrequests fehlen
 noch (siehe [Offene Punkte](#offene-punkte)).
 
 Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
@@ -212,7 +212,8 @@ Tabs: **General · Encoding · Source**
 |---|---|
 | Name, Auto Start | `name`, `autoStart` |
 | Mode (Listener/Caller) | `mode` |
-| Port / Address | `port`, `address` (+ `localPort`, `localPortOn`) |
+| Listener: Port | `localPort` |
+| Caller: Address, Port, Source Port (+Schalter) | `address`, `port`, `localPort`, `localPortOn` |
 | Latency | `latency` |
 | Encryption (AES-128/192/256), Passphrase, Encrypt | `pbkeylen`, `passphrase`, `encrytion` *(sic)* |
 | (Stream ID) | `streamid`, `streamidOn` |
@@ -348,8 +349,10 @@ Alle mit `params: {sysid:"<lokale sysid>", id:"<unit id>"}`, Antwort `{method, i
 | `resetVstat` | Reset Stats | Enc/Dec | |
 | `resetSSRC` | Video › Reset Buffer | Enc | Fehler `"video not running"`, wenn gestoppt |
 | `flushAudio` | General › Reset Audio Buffer | Dec | Fehler `"video not running"`, wenn gestoppt |
+| `deleteVideo` | Unit löschen | Enc/Dec/SRT | Antwort `{method, sysid, response:true}`; funktioniert für `-E`, `-D`, `-srtE`, `-srtD` |
 
-Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with Bars“.
+Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with Bars“, das Anlegen
+von Units („Add New“).
 
 ### 4.4 Abhängigkeiten / Nebenwirkungen
 
@@ -361,7 +364,23 @@ Noch nicht mitgeschnitten: „Restart XLink Tunnel“, „Start this time with B
 | `vCard` (Decoder) | `vModeA` ändert sich, Optionsliste `vCard` wird neu geschickt |
 | `vModeLock = "auto"` bei `vCard "12"` (2110) | Fehler, nicht unterstützt |
 
-### 4.5 Im Mitschnitt nicht vorgekommen
+### 4.5 SRT Sender / Receiver
+
+SRT-Units nutzen dasselbe `config` (ein Key pro Request, `state.update`-Push). Beobachtete
+Keys und Typen:
+
+| Typ | SRT Sender (`-srtE<n>`) | SRT Receiver (`-srtD<n>`) |
+|---|---|---|
+| bool | `autoStart`, `encrytion` *(sic)*, `localPortOn`, `vPIntraOn`, `vGOPOn` | `autoStart`, `encrytion`, `localPortOn`, `audio` |
+| number | `mode` (1 Listener / 2 Caller), `pbkeylen` (16/24/32), `vBit`, `vGOP`, `vTBR`, `aTBR`, `aCh` (0–16) | `mode`, `pbkeylen` |
+| string | `name`, `address`, `vCard`, `vMode`, `passphrase` (Klartext!) | `name`, `address`, `vCard` |
+| **string (numerisch)** | `localPort`, `port`, `latency` | `localPort`, `port`, `latency` |
+
+- `vCard` ändern pusht jedes Mal die Optionsliste `vCard` neu.
+- Die Passphrase geht im Klartext über den (unverschlüsselten) WebSocket.
+- Beim SRT Receiver wurde `aMode` (Audio-Codec) nicht geändert.
+
+### 4.6 Im Mitschnitt nicht vorgekommen
 
 Encoder: `name`, `receiver`, `vNoS`, Source-Input (`vCard`), Audio-Enabled, Sec-Netz (`*NetSec*`).
 Decoder: `sender`, `vBnoInText`, `vBnoInFormatOn`/`NameOn`/`SysNameOn`, `sdilevelA`,
@@ -412,9 +431,9 @@ HTTP (vor diesem Durchlauf nicht mitgeschnitten).
 
 ## Offene Punkte
 
-- **Schreib-Requests für SRT und Netzwerk** (ETH, Trunks) sind noch nicht mitgeschnitten.
+- **Schreib-Requests für Netzwerk** (ETH, Trunks) und das Anlegen von Units ("Add New") sind noch nicht mitgeschnitten.
 - System: Profile, User, Admin Proxy, Version/Update, License, weitere NMOS-Felder
   (Domain, Registry, Labels) sowie PTP-Werte ohne UI.
-- Die in 4.5 genannten Encoder-/Decoder-Felder fehlen noch.
+- Die in 4.6 genannten Encoder-/Decoder-Felder fehlen noch.
 - Welche weiteren `sys.subscribe`-IDs existieren (Profile, Ports, Proxy, Version …)?
 - Bedeutung einiger Keys ohne UI-Pendant (`vULL`, `vCCB`, `rateControl`, `oldRDP`, …).
