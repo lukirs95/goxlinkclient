@@ -1,11 +1,14 @@
 # VideoXLink Web-UI – Konfiguration & JSON-RPC (FW 1.8.4.6)
 
 Reverse-Engineering-Protokoll des Web-Frontends (PrimeVue-App) eines X8-R2-Systems mit
-Firmware **1.8.4.6**. Abschnitte 1–3 stammen aus einer rein lesenden Erkundung (Dialoge
-geöffnet, Tabs gewechselt). Abschnitt 4 stammt aus einem Mitschnitt, bei dem ein Remote-Sender
-und ein lokaler Receiver komplett umkonfiguriert sowie gestartet/gestoppt wurden, Abschnitt 5
-aus einem Durchlauf durch die Systemeinstellungen, SRT in 4.5, Netzwerk (`configEth`, Trunks) in 5. IP-Einstellungen fehlen
-noch (siehe [Offene Punkte](#offene-punkte)).
+Firmware **1.8.4.6**.
+
+- Abschnitte 1–3: rein lesende Erkundung (Dialoge geöffnet, Tabs gewechselt).
+- Abschnitt 4: Mitschnitte beim Umkonfigurieren eines Remote-Senders, eines lokalen
+  Receivers und von SRT-Units, inkl. Start/Stop, Anlegen und Löschen.
+- Abschnitt 5: Mitschnitte der System-, Netzwerk- (ETH inkl. IP) und Trunk-Einstellungen.
+
+Was noch fehlt, steht unter [Offene Punkte](#offene-punkte).
 
 Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 
@@ -240,7 +243,7 @@ Tabs: **General · Destination** – wie SRT Sender (`mode`, `address`, `port` a
 | Admin Only ETH | `adminOnly` |
 | Default External / Lan (NDI) / Backup External | `default`, `defaultLan` *(per Mitschnitt bestätigt)*, `backup` *(nur Nicht-Admin-ETHs)* |
 | DHCP / Static | `dhcp` |
-| IP, Gate, Mask, Dns 1/2 (per „Change“) | `ip`, `gate`, `mask`, `dns1`, `dns2` |
+| IP, Gate, Mask, Dns 1/2 (per „Change“) | `ip`, `gate`, `mask`, `dns1`, `dns2` – zusammen mit `dhcp:false` in einem `configEth` |
 | WebAdmin | `admin` |
 | WebAdmin – Only allow https connections | `adminSslOnly` *(neu, nur Admin-ETH)* |
 | IGMP | `igmp` |
@@ -419,7 +422,7 @@ Gruppe geschickt.
 | `dnsSys` | System Config › DNS & MTU | `{dnsStatic}`, `{dnsStaticIp1}`, `{dnsStaticIp2}` | `sys.update configSys` |
 | `setSystemMTU` | System Config › DNS & MTU | `{mtuTrunk}` (number) | `sys.update configSys` |
 | `manAddPeer` | System Config › Add System | `{systemId:"<remote sysid>"}` | – |
-| `configEth` | Network › Eth › Settings | `{eth:"eth3", <key>:<wert>}` – ein Key pro Request: `enabled`, `default` (Default External), `defaultLan` (Lan (NDI)), `backup` (Backup External), `admin` (WebAdmin), `adminSslOnly`, `igmp`, `nmos` (alle bool) | vermutl. `systems.update` (`network.nets[]`) |
+| `configEth` | Network › Eth › Settings | `{eth:"eth3", <key>:<wert>}` – ein Key pro Request: `enabled`, `default` (Default External), `defaultLan` (Lan (NDI)), `backup` (Backup External), `admin` (WebAdmin), `adminSslOnly`, `igmp`, `nmos` (alle bool). **IP-Konfiguration** als ein Request: statisch `{eth, dhcp:false, ip, mask, gate, dns1, dns2}` (alles Strings, z. B. `mask:"255.255.0.0"`), DHCP nur `{eth, dhcp:true}` | vermutl. `systems.update` (`network.nets[]`) |
 | `manIpPeer` | Remote System › Manual IP Connect | `{peer:"<remote sysid>", manIp:"<ip>", manIpSec:"<ip>", manPort:"10501", manAutCon:false}` – immer der komplette Satz; Löschen = `manIp/manIpSec/manPort:""`, `manAutCon:false` | vermutl. `systems.update` (Peer-Felder `manIp`, `manIpSec`, `manPort`, `manAutCon`) |
 
 **`sys.update`-Push** (solange `sys.subscribe configSys` aktiv ist):
@@ -490,7 +493,7 @@ HTTP (vor diesem Durchlauf nicht mitgeschnitten).
 
 ## Offene Punkte
 
-- **Netzwerk:** ETH-IP/DHCP/DNS-Änderungen (vermutlich ebenfalls `configEth`) sind noch nicht mitgeschnitten – im zweiten Netzwerk-Durchlauf kam aus dem mitgeschnittenen Tab keine solche Nachricht. Ebenso „Add New“ für SRT/NDI.
+- „Add New“ für SRT/NDI ist noch nicht mitgeschnitten.
 - System: Profile, User, Admin Proxy, Version/Update, License, weitere NMOS-Felder
   (Domain, Registry, Labels) sowie PTP-Werte ohne UI.
 - Die in 4.6 genannten Encoder-/Decoder-Felder fehlen noch.
