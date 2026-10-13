@@ -36,8 +36,16 @@ type Encoder struct {
 	VideoIn   Signal
 	AudioIn   Signal
 	// HDR is the dynamic range of the video input.
-	HDR   HDRMode
-	Codec VideoCodec
+	HDR HDRMode
+	// NDISource is the selected NDI source if Card is VideoCardNDI, and
+	// NDISourceName the name of the NDI host providing it.
+	NDISource          string
+	NDISourceName      string
+	NDISourceConnected bool
+	// MultiPointSource is the selected MultiPoint sender if Card is
+	// VideoCardMultiPoint, or "" if none is selected.
+	MultiPointSource string
+	Codec            VideoCodec
 	// CRF reports whether constant rate factor encoding is on; Bitrate is
 	// then the maximum bitrate.
 	CRF bool
@@ -207,7 +215,13 @@ type LinkedReceiver struct {
 // LinkedSender is the encoder a local decoder receives from.
 type LinkedSender struct {
 	LinkedUnit
-	Codec VideoCodec
+	// NDISource is the selected NDI source if Card is VideoCardNDI.
+	NDISource          string
+	NDISourceConnected bool
+	// MultiPointSource is the selected MultiPoint sender if Card is
+	// VideoCardMultiPoint, or "" if none is selected.
+	MultiPointSource string
+	Codec            VideoCodec
 	// CRF reports whether constant rate factor encoding is on; Bitrate is
 	// then the maximum bitrate.
 	CRF bool

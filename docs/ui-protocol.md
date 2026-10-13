@@ -59,6 +59,11 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   HLG), `connected`, `running`; der Receiver zusätzlich `vOut`, `aOut`, `vRef`, `avSync`,
   `avUnSync`, der Sender `vCodec`, `vCRFOn` und `vTBR`.
 - AV-sync zeigt die UI als „In Sync“, wenn `avSync` gesetzt ist, sonst `avUnSync` (ms).
+- XLink-Encoder (und `dec[].sender`) mit `vCard` **10** haben eine NDI-Quelle als Eingang:
+  `ndiSource` (z. B. `"X8A0135 (NDI S7)"`), `ndiSourceName` (NDI-Host, z. B.
+  `"ndi-X8A0135"`), `ndiSourceCon`; die UI zeigt „NDI Source“ (bzw. „Offline …“) und
+  „In NDI <vIn>“. Mit `vCard` **11** zeigt sie stattdessen `mPointSender` als „MultiPoint
+  Source“ (`"none"` = keine). In den Statistiken ist `vInT` dann 0.
 - `vTBR` (Bitrate) steht in `systems.full` als Gleitkommazahl (`25.0`), beim Schreiben als
   Ganzzahl.
 - Innerhalb **einer** Nachricht sind Typen uneinheitlich: In `enc[].values` ist

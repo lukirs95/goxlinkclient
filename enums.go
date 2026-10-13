@@ -10,17 +10,18 @@ import "strconv"
 type VideoCard int
 
 const (
-	VideoCardNone   VideoCard = 0
-	VideoCardSDI1   VideoCard = 1
-	VideoCardSDI2   VideoCard = 2
-	VideoCardSDI3   VideoCard = 3
-	VideoCardSDI4   VideoCard = 4
-	VideoCardSDI5   VideoCard = 5
-	VideoCardSDI6   VideoCard = 6
-	VideoCardSDI7   VideoCard = 7
-	VideoCardSDI8   VideoCard = 8
-	VideoCardNDI    VideoCard = 10
-	VideoCardST2110 VideoCard = 12
+	VideoCardNone       VideoCard = 0
+	VideoCardSDI1       VideoCard = 1
+	VideoCardSDI2       VideoCard = 2
+	VideoCardSDI3       VideoCard = 3
+	VideoCardSDI4       VideoCard = 4
+	VideoCardSDI5       VideoCard = 5
+	VideoCardSDI6       VideoCard = 6
+	VideoCardSDI7       VideoCard = 7
+	VideoCardSDI8       VideoCard = 8
+	VideoCardNDI        VideoCard = 10
+	VideoCardMultiPoint VideoCard = 11
+	VideoCardST2110     VideoCard = 12
 )
 
 // SDIPort returns the SDI port number (1-8). ok is false if the card is not an
@@ -38,6 +39,8 @@ func (c VideoCard) String() string {
 		return "None"
 	case c == VideoCardNDI:
 		return "NDI"
+	case c == VideoCardMultiPoint:
+		return "MultiPoint"
 	case c == VideoCardST2110:
 		return "2110"
 	case c >= VideoCardSDI1 && c <= VideoCardSDI8:

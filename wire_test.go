@@ -167,7 +167,8 @@ func TestUpdateLinkedUnits(t *testing.T) {
 		`"vOut":"1080i50","aOut":"2 Ch 48 kHz","vCard":"1","vCardConn":"sdi","vHDR":"3","vRef":true,`+
 		`"avSync":false,"avUnSync":40,"connected":true,"running":true}}}],`+
 		`"dec":[{"id":"X8A1001-D3","values":{"avSync":true},"sender":{"values":{"vIn":"1080i50","aIn":"8 Ch 48 kHz",`+
-		`"vCard":"12","vCardConn":"sdi","vHDR":0,"vTBR":10.0,"vCodec":2,"vCRFOn":true,"connected":true,"running":true}}}]}}}`))
+		`"vCard":"10","vCardConn":"sdi","vHDR":0,"vTBR":10.0,"vCodec":2,"vCRFOn":true,"ndiSource":"X4A1005 (NDI S1)",`+
+		`"ndiSourceCon":false,"mPointSender":"none","connected":true,"running":true}}}]}}}`))
 	sys := mustSnapshot(t, st)
 
 	enc, _ := sys.Encoder("X8A1001-E1")
@@ -186,15 +187,29 @@ func TestUpdateLinkedUnits(t *testing.T) {
 	wantSender := LinkedSender{
 		LinkedUnit: LinkedUnit{
 			ID: "X4A1005-E1", Name: "ENC-18", SystemName: "NAME-11", Running: true, Connected: true,
-			Card: VideoCardST2110, Connector: "sdi", VideoIn: "1080i50", AudioIn: "8 Ch 48 kHz",
+			Card: VideoCardNDI, Connector: "sdi", VideoIn: "1080i50", AudioIn: "8 Ch 48 kHz",
 		},
-		Codec: VideoCodecH265, CRF: true, Bitrate: 10,
+		NDISource: "X4A1005 (NDI S1)",
+		Codec:     VideoCodecH265, CRF: true, Bitrate: 10,
 	}
 	if dec.Sender != wantSender {
 		t.Errorf("Sender = %+v\nwant     %+v", dec.Sender, wantSender)
 	}
 	if !dec.AVSync {
 		t.Error("AVSync = false, want true")
+	}
+}
+
+func TestUpdateEncoderNDIInput(t *testing.T) {
+	st := loadState(t, "systems_full_1.8.json")
+	// An XLink encoder with an NDI source as input, as sent by the device.
+	mustApplyUpdate(t, st, []byte(`{"dataid":770,"data":{"local":{"enc":[{"id":"X8A1001-E2","values":{`+
+		`"vIn":"1080i50","vCard":"10","ndiSource":"X8A1001 (NDI S7)","ndiSourceName":"ndi-X8A1001",`+
+		`"ndiSourceCon":true,"mPointSender":"none"}}]}}}`))
+	enc, _ := mustSnapshot(t, st).Encoder("X8A1001-E2")
+	if enc.Card != VideoCardNDI || enc.NDISource != "X8A1001 (NDI S7)" || enc.NDISourceName != "ndi-X8A1001" ||
+		!enc.NDISourceConnected || enc.MultiPointSource != "" || enc.VideoIn != "1080i50" {
+		t.Errorf("encoder = %+v", enc)
 	}
 }
 

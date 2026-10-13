@@ -104,9 +104,10 @@ type wireEncoderValues struct {
 	VCRFOn    flexBool `json:"vCRFOn"`
 	VTBR      flexInt  `json:"vTBR"`
 	VFEC      flexInt  `json:"vFEC"`
-	XLink     flexBool `json:"xLink"`
-	XLinkP2P  flexBool `json:"xLinkp2p"`
-	Running   flexBool `json:"running"`
+	wireSourceValues
+	XLink    flexBool `json:"xLink"`
+	XLinkP2P flexBool `json:"xLinkp2p"`
+	Running  flexBool `json:"running"`
 }
 
 func (e *wireEncoder) toEncoder(c *collector) Encoder {
@@ -114,23 +115,27 @@ func (e *wireEncoder) toEncoder(c *collector) Encoder {
 	vc := c.scope("values")
 	video, audio := v.streams(vc)
 	enc := Encoder{
-		ID:        UnitID(e.ID),
-		Name:      e.Name,
-		Enabled:   c.bool("enabled", &e.Enabled),
-		Running:   vc.bool("running", &v.Running),
-		Card:      VideoCard(vc.int("vCard", &v.VCard)),
-		Connector: v.VCardConn,
-		VideoIn:   Signal(v.VIn),
-		AudioIn:   Signal(v.AIn),
-		HDR:       HDRMode(vc.int("vHDR", &v.VHDR)),
-		Codec:     VideoCodec(vc.int("vCodec", &v.VCodec)),
-		CRF:       vc.bool("vCRFOn", &v.VCRFOn),
-		Bitrate:   vc.int("vTBR", &v.VTBR),
-		FECLevel:  vc.int("vFEC", &v.VFEC),
-		Video2110: video,
-		Audio2110: audio,
-		XLink:     vc.bool("xLink", &v.XLink),
-		P2P:       vc.bool("xLinkp2p", &v.XLinkP2P),
+		ID:                 UnitID(e.ID),
+		Name:               e.Name,
+		Enabled:            c.bool("enabled", &e.Enabled),
+		Running:            vc.bool("running", &v.Running),
+		Card:               VideoCard(vc.int("vCard", &v.VCard)),
+		Connector:          v.VCardConn,
+		VideoIn:            Signal(v.VIn),
+		AudioIn:            Signal(v.AIn),
+		HDR:                HDRMode(vc.int("vHDR", &v.VHDR)),
+		NDISource:          v.NDISource,
+		NDISourceName:      v.NDISourceName,
+		NDISourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
+		MultiPointSource:   v.multiPointSource(),
+		Codec:              VideoCodec(vc.int("vCodec", &v.VCodec)),
+		CRF:                vc.bool("vCRFOn", &v.VCRFOn),
+		Bitrate:            vc.int("vTBR", &v.VTBR),
+		FECLevel:           vc.int("vFEC", &v.VFEC),
+		Video2110:          video,
+		Audio2110:          audio,
+		XLink:              vc.bool("xLink", &v.XLink),
+		P2P:                vc.bool("xLinkp2p", &v.XLinkP2P),
 	}
 	c.merge(vc)
 	rc := c.scope("receiver")
@@ -335,6 +340,22 @@ func ofType(t UnitType) func(*wireMediaUnit) bool {
 	return func(u *wireMediaUnit) bool { return UnitID(u.ID).Type() == t }
 }
 
+// wireSourceValues are the NDI and MultiPoint inputs of an XLink encoder.
+type wireSourceValues struct {
+	NDISource     string   `json:"ndiSource"`
+	NDISourceName string   `json:"ndiSourceName"`
+	NDISourceCon  flexBool `json:"ndiSourceCon"`
+	MPointSender  string   `json:"mPointSender"`
+}
+
+// multiPointSource maps the device's "none" to "".
+func (v *wireSourceValues) multiPointSource() string {
+	if v.MPointSender == "none" {
+		return ""
+	}
+	return v.MPointSender
+}
+
 // wireLinked is the counterpart embedded in a local encoder ("receiver") or
 // decoder ("sender").
 type wireLinked struct {
@@ -358,6 +379,7 @@ type wireLinkedValues struct {
 	VCodec    flexInt  `json:"vCodec"`
 	VCRFOn    flexBool `json:"vCRFOn"`
 	VTBR      flexInt  `json:"vTBR"`
+	wireSourceValues
 	Connected flexBool `json:"connected"`
 	Running   flexBool `json:"running"`
 }
@@ -398,10 +420,13 @@ func (l *wireLinked) toSender(c *collector) LinkedSender {
 	v := &l.Values
 	vc := c.scope("values")
 	s := LinkedSender{
-		LinkedUnit: l.toLinked(vc),
-		Codec:      VideoCodec(vc.int("vCodec", &v.VCodec)),
-		CRF:        vc.bool("vCRFOn", &v.VCRFOn),
-		Bitrate:    vc.int("vTBR", &v.VTBR),
+		LinkedUnit:         l.toLinked(vc),
+		NDISource:          v.NDISource,
+		NDISourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
+		MultiPointSource:   v.multiPointSource(),
+		Codec:              VideoCodec(vc.int("vCodec", &v.VCodec)),
+		CRF:                vc.bool("vCRFOn", &v.VCRFOn),
+		Bitrate:            vc.int("vTBR", &v.VTBR),
 	}
 	c.merge(vc)
 	return s
