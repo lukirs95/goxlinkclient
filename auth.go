@@ -30,14 +30,17 @@ type authParams struct {
 }
 
 // authenticate waits for the device's notify.auth message, which carries the
-// system ID, and logs in. It returns nil if ctx is done first.
-func (c *Client) authenticate(ctx context.Context, advice jsonrpc.Subscription) error {
+// system ID, and logs in. It returns nil if ctx is done or the connection is
+// closed first; Run then reports why the connection ended.
+func (c *Client) authenticate(ctx context.Context, advice jsonrpc.Subscription, closed <-chan struct{}) error {
 	timer := time.NewTimer(authTimeout)
 	defer timer.Stop()
 
 	var msg jsonrpc.Notification
 	select {
 	case <-ctx.Done():
+		return nil
+	case <-closed:
 		return nil
 	case <-timer.C:
 		return ErrAuthTimeout
@@ -60,7 +63,7 @@ func (c *Client) authenticate(ctx context.Context, advice jsonrpc.Subscription) 
 		return fmt.Errorf("%w: %w", ErrAuthFailed, deviceError(methodAuth, rpcErr))
 	}
 	if err != nil {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || errors.Is(err, jsonrpc.ErrConnectionClosed) {
 			return nil
 		}
 		return fmt.Errorf("xlinkclient: authenticate: %w", err)

@@ -210,6 +210,9 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 	}()
 
+	// connClosed is closed when Connect returns, authDone when the
+	// authentication has finished.
+	connClosed, authDone := make(chan struct{}), make(chan struct{})
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
@@ -217,15 +220,23 @@ func (c *Client) Run(ctx context.Context) error {
 	}()
 	go func() {
 		defer wg.Done()
-		if err := c.authenticate(ctx, subs.advice); err != nil {
+		err := c.authenticate(ctx, subs.advice, connClosed)
+		if err != nil {
 			cancel(err)
-			return
 		}
-		c.subscribeLocalStats(ctx)
+		close(authDone)
+		if err == nil {
+			c.subscribeLocalStats(ctx)
+		}
 	}()
 
 	c.logger.Info("connecting")
 	err := c.jrpc.Connect(ctx, fmt.Sprintf("ws://%s/jsonrpc", c.addr), nil)
+	close(connClosed)
+	// The device may close the connection right after rejecting the login,
+	// before the response has been handled. The authentication result
+	// decides which error is returned.
+	<-authDone
 	authErr := context.Cause(ctx)
 	cancel(nil)
 	wg.Wait()
