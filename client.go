@@ -180,6 +180,7 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 	defer c.running.Store(false)
 
+	parent := ctx
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -251,7 +252,9 @@ func (c *Client) Run(ctx context.Context) error {
 		c.logger.Error("authentication failed", slog.Any("error", authErr))
 		return authErr
 	}
-	if err != nil {
+	// When the caller ends Run, closing the connection may surface as a read
+	// error instead of a context error.
+	if err != nil && parent.Err() == nil {
 		c.logger.Error("connection closed unexpectedly", slog.Any("error", err))
 		return err
 	}
