@@ -61,6 +61,9 @@ type Encoder struct {
 	// Receiver is the decoder this encoder sends to. Its ID is empty if no
 	// receiver is selected.
 	Receiver LinkedReceiver
+	// Config is the configuration of the unit, or nil until it has been
+	// loaded.
+	Config *EncoderConfig
 }
 
 // Decoder is an XLink decoder of the local system.
@@ -98,6 +101,9 @@ type Decoder struct {
 	// Sender is the encoder this decoder receives from. Its ID is empty if no
 	// sender is selected.
 	Sender LinkedSender
+	// Config is the configuration of the unit, or nil until it has been
+	// loaded.
+	Config *DecoderConfig
 }
 
 // SRTEncoder is an SRT sender of the local system.
@@ -115,6 +121,9 @@ type SRTEncoder struct {
 	// Bitrate is the video bitrate in Mbps.
 	Bitrate int
 	SRT     SRTConnection
+	// Config is the configuration of the unit, or nil until it has been
+	// loaded.
+	Config *SRTEncoderConfig
 }
 
 // SRTDecoder is an SRT receiver of the local system.
@@ -131,6 +140,9 @@ type SRTDecoder struct {
 	VideoIn   Signal
 	VideoOut  Signal
 	SRT       SRTConnection
+	// Config is the configuration of the unit, or nil until it has been
+	// loaded.
+	Config *SRTDecoderConfig
 }
 
 // SRTConnection describes how an SRT unit connects.
@@ -156,6 +168,9 @@ type NDIEncoder struct {
 	Connector string
 	VideoIn   Signal
 	VideoOut  Signal
+	// Config is the configuration of the unit, or nil until it has been
+	// loaded.
+	Config *NDIEncoderConfig
 }
 
 // NDIDecoder outputs an NDI stream on an SDI output of the local system.
@@ -180,6 +195,9 @@ type NDIDecoder struct {
 	SourceName      string
 	SourceConnected bool
 	FPSSync         bool
+	// Config is the configuration of the unit, or nil until it has been
+	// loaded.
+	Config *NDIDecoderConfig
 }
 
 // LinkedUnit is the counterpart of a local unit as reported by the local
@@ -210,6 +228,9 @@ type LinkedReceiver struct {
 	// is the offset between them.
 	AVSync  bool
 	AVDelay time.Duration
+	// Config is the configuration of the receiver, or nil until it has been
+	// loaded.
+	Config *DecoderConfig
 }
 
 // LinkedSender is the encoder a local decoder receives from.
@@ -227,4 +248,7 @@ type LinkedSender struct {
 	CRF bool
 	// Bitrate is the target bitrate in Mbps.
 	Bitrate int
+	// Config is the configuration of the sender, or nil until it has been
+	// loaded.
+	Config *EncoderConfig
 }

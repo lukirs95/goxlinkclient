@@ -684,8 +684,9 @@ var errNoState = errors.New("xlinkclient: update received before full state")
 
 // state is the merged wire state of one system.
 type state struct {
-	wire   wireParams
-	loaded bool
+	wire    wireParams
+	loaded  bool
+	configs configs
 }
 
 // applyFull replaces the state with a systems.full message.
@@ -732,6 +733,7 @@ func (s *state) applyUpdate(params json.RawMessage) (gap bool, err error) {
 func (s *state) snapshot() (System, []decodeIssue) {
 	var c collector
 	sys := s.wire.toSystem(&c)
+	s.configs.attach(&c, &sys)
 	return sys, c.issues
 }
 

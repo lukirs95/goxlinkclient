@@ -36,6 +36,26 @@ for u := range updates {
 }
 ```
 
+The configuration of a unit, i.e. what its settings dialog in the web UI
+shows, is not part of `systems.full`. The client subscribes it with
+`state.subscribe` for every local unit and for the counterparts of the local
+XLink units, follows the `state.update` deltas and keeps it in the snapshot.
+`Config` is nil until it has been loaded:
+
+```go
+for _, enc := range u.System.Encoders {
+	if enc.Config != nil {
+		fmt.Println(enc.ID, enc.Config.Bitrate, enc.Config.GOP, enc.Config.MaxRTT)
+	}
+	if enc.Receiver.Config != nil {
+		fmt.Println(enc.Receiver.ID, enc.Receiver.Config.PacketBuffer)
+	}
+}
+```
+
+New units and new links are subscribed as they appear, deleted ones
+unsubscribed. The fields mirror the settings of the `Configure` methods.
+
 `Run` returns when the connection ends; call it again to reconnect. See
 [example/main.go](example/main.go) for several systems with reconnects.
 

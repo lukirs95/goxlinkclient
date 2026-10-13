@@ -11,36 +11,39 @@ import (
 
 // JSON-RPC methods sent by the client.
 const (
-	methodAuth           jsonrpc.Method = "auth"
-	methodConfig         jsonrpc.Method = "config"
-	methodReboot         jsonrpc.Method = "reboot"
-	methodShutdown       jsonrpc.Method = "shutdown"
-	methodStart          jsonrpc.Method = "start"
-	methodStop           jsonrpc.Method = "stop"
-	methodResetStats     jsonrpc.Method = "resetVstat"
-	methodResetBuffer    jsonrpc.Method = "resetSSRC"
-	methodFlushAudio     jsonrpc.Method = "flushAudio"
-	methodNewVideo       jsonrpc.Method = "newVideo"
-	methodDeleteVideo    jsonrpc.Method = "deleteVideo"
-	methodConfigEth      jsonrpc.Method = "configEth"
-	methodSet2110        jsonrpc.Method = "set2110"
-	methodDNS            jsonrpc.Method = "dnsSys"
-	methodSystemMTU      jsonrpc.Method = "setSystemMTU"
-	methodSystemName     jsonrpc.Method = "configSysName"
-	methodSystemPorts    jsonrpc.Method = "configSysPorts"
-	methodManualIP       jsonrpc.Method = "manIpPeer"
-	methodAddPeer        jsonrpc.Method = "manAddPeer"
-	methodNewTrunk       jsonrpc.Method = "newL2S"
-	methodConfigTrunk    jsonrpc.Method = "configL2S"
-	methodStartTrunk     jsonrpc.Method = "startL2S"
-	methodStopTrunk      jsonrpc.Method = "stopL2S"
-	methodDeleteTrunk    jsonrpc.Method = "deleteL2S"
-	methodLocalStats     jsonrpc.Method = "localStats.subscribe"
-	notifySystemsFull    jsonrpc.Method = "systems.full"
-	notifySystemsUpdate  jsonrpc.Method = "systems.update"
-	notifySystemsStats   jsonrpc.Method = "systems.stats"
-	notifyLocalStats     jsonrpc.Method = "systems.localStats"
-	notifyAuthentication jsonrpc.Method = "notify.auth"
+	methodAuth            jsonrpc.Method = "auth"
+	methodConfig          jsonrpc.Method = "config"
+	methodReboot          jsonrpc.Method = "reboot"
+	methodShutdown        jsonrpc.Method = "shutdown"
+	methodStart           jsonrpc.Method = "start"
+	methodStop            jsonrpc.Method = "stop"
+	methodResetStats      jsonrpc.Method = "resetVstat"
+	methodResetBuffer     jsonrpc.Method = "resetSSRC"
+	methodFlushAudio      jsonrpc.Method = "flushAudio"
+	methodNewVideo        jsonrpc.Method = "newVideo"
+	methodDeleteVideo     jsonrpc.Method = "deleteVideo"
+	methodConfigEth       jsonrpc.Method = "configEth"
+	methodSet2110         jsonrpc.Method = "set2110"
+	methodDNS             jsonrpc.Method = "dnsSys"
+	methodSystemMTU       jsonrpc.Method = "setSystemMTU"
+	methodSystemName      jsonrpc.Method = "configSysName"
+	methodSystemPorts     jsonrpc.Method = "configSysPorts"
+	methodManualIP        jsonrpc.Method = "manIpPeer"
+	methodAddPeer         jsonrpc.Method = "manAddPeer"
+	methodNewTrunk        jsonrpc.Method = "newL2S"
+	methodConfigTrunk     jsonrpc.Method = "configL2S"
+	methodStartTrunk      jsonrpc.Method = "startL2S"
+	methodStopTrunk       jsonrpc.Method = "stopL2S"
+	methodDeleteTrunk     jsonrpc.Method = "deleteL2S"
+	methodLocalStats      jsonrpc.Method = "localStats.subscribe"
+	methodSubscribeUnit   jsonrpc.Method = "state.subscribe"
+	methodUnsubscribeUnit jsonrpc.Method = "state.unsubscribe"
+	notifySystemsFull     jsonrpc.Method = "systems.full"
+	notifySystemsUpdate   jsonrpc.Method = "systems.update"
+	notifySystemsStats    jsonrpc.Method = "systems.stats"
+	notifyLocalStats      jsonrpc.Method = "systems.localStats"
+	notifyUnitUpdate      jsonrpc.Method = "state.update"
+	notifyAuthentication  jsonrpc.Method = "notify.auth"
 )
 
 // ErrNotConnected is returned by requests while the client is not connected
@@ -122,25 +125,32 @@ type result struct {
 
 // call sends a request and checks the device's response flag.
 func (c *Client) call(ctx context.Context, method jsonrpc.Method, params any) error {
+	_, err := c.request(ctx, method, params)
+	return err
+}
+
+// request sends a request, checks the device's response flag and returns the
+// result.
+func (c *Client) request(ctx context.Context, method jsonrpc.Method, params any) (json.RawMessage, error) {
 	if !c.Ready() {
-		return ErrNotConnected
+		return nil, ErrNotConnected
 	}
 	raw, err := c.jrpc.SendRequest(ctx, method, params)
 	var rpcErr *jsonrpc.Error
 	if errors.As(err, &rpcErr) {
-		return deviceError(method, rpcErr)
+		return nil, deviceError(method, rpcErr)
 	}
 	if err != nil {
-		return fmt.Errorf("xlinkclient: %s: %w", method, err)
+		return nil, fmt.Errorf("xlinkclient: %s: %w", method, err)
 	}
 	var res result
 	if err := json.Unmarshal(raw, &res); err != nil {
-		return fmt.Errorf("xlinkclient: %s: decode response: %w", method, err)
+		return nil, fmt.Errorf("xlinkclient: %s: decode response: %w", method, err)
 	}
 	if !res.Response {
-		return &DeviceError{Method: string(method)}
+		return nil, &DeviceError{Method: string(method)}
 	}
-	return nil
+	return raw, nil
 }
 
 // unitParams addresses a unit. sysid is always the local system, also for

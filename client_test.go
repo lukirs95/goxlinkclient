@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,6 +40,19 @@ type fakeDevice struct {
 	requests  chan request
 	// statsSubscribe receives the params of localStats.subscribe.
 	statsSubscribe chan json.RawMessage
+	// units are the state.subscribe responses by unit ID; other units are
+	// rejected. unitRequests receives state.subscribe and
+	// state.unsubscribe requests.
+	units        map[string]json.RawMessage
+	unitRequests chan request
+	// push sends notifications to the client.
+	push chan notification
+}
+
+// notification is a message pushed by the fake device.
+type notification struct {
+	method string
+	params json.RawMessage
 }
 
 func newFakeDevice(t *testing.T, password string) *fakeDevice {
@@ -53,6 +67,18 @@ func newFakeDevice(t *testing.T, password string) *fakeDevice {
 		rpcErrors:      map[string]string{},
 		requests:       make(chan request, 16),
 		statsSubscribe: make(chan json.RawMessage, 1),
+		units:          map[string]json.RawMessage{},
+		unitRequests:   make(chan request, 64),
+		push:           make(chan notification),
+	}
+	var units []json.RawMessage
+	if err := json.Unmarshal(readFixture(t, "state_subscribe_1.8.json"), &units); err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range units {
+		var head struct{ ID string }
+		_ = json.Unmarshal(u, &head)
+		d.units[head.ID] = u
 	}
 	d.srv = httptest.NewServer(http.HandlerFunc(d.serve))
 	t.Cleanup(d.srv.Close)
@@ -83,6 +109,16 @@ func (d *fakeDevice) serve(w http.ResponseWriter, r *http.Request) {
 	if err := notify("notify.auth", json.RawMessage(`{"sysid":"`+fakeSystemID+`"}`)); err != nil {
 		return
 	}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case n := <-d.push:
+				_ = notify(n.method, n.params)
+			}
+		}
+	}()
 	for {
 		var req request
 		if err := wsjson.Read(ctx, conn, &req); err != nil {
@@ -122,6 +158,21 @@ func (d *fakeDevice) serve(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := notify("systems.localStats", d.localStats); err != nil {
+				return
+			}
+			continue
+		}
+		if req.Method == "state.subscribe" || req.Method == "state.unsubscribe" {
+			d.unitRequests <- req
+			var p struct{ ID string }
+			_ = json.Unmarshal(req.Params, &p)
+			var result any = map[string]any{"method": req.Method, "id": p.ID, "response": true}
+			if unit, ok := d.units[p.ID]; ok && req.Method == "state.subscribe" {
+				result = unit
+			} else if req.Method == "state.subscribe" {
+				result = map[string]any{"method": req.Method, "id": p.ID, "response": false}
+			}
+			if err := respond(req.ID, result); err != nil {
 				return
 			}
 			continue
@@ -378,4 +429,89 @@ func TestRunNotConcurrent(t *testing.T) {
 		t.Errorf("second Run = %v, want ErrAlreadyRunning", err)
 	}
 	_ = stop()
+}
+
+// waitSystem returns the first snapshot from updates that satisfies cond.
+func waitSystem(t *testing.T, updates <-chan Update, what string, cond func(System) bool) System {
+	t.Helper()
+	timeout := time.After(3 * time.Second)
+	for {
+		select {
+		case u := <-updates:
+			if cond(u.System) {
+				return u.System
+			}
+		case <-timeout:
+			t.Fatalf("no snapshot with %s", what)
+			return System{}
+		}
+	}
+}
+
+// nextUnitRequest returns the next state.subscribe or state.unsubscribe
+// request with its unit ID.
+func (d *fakeDevice) nextUnitRequest(t *testing.T) (method string, id UnitID) {
+	t.Helper()
+	select {
+	case req := <-d.unitRequests:
+		var p struct{ ID UnitID }
+		_ = json.Unmarshal(req.Params, &p)
+		return req.Method, p.ID
+	case <-time.After(2 * time.Second):
+		t.Fatal("no unit request received")
+		return "", ""
+	}
+}
+
+func TestUnitConfigEndToEnd(t *testing.T) {
+	d := newFakeDevice(t, "secret")
+	_, updates, stop := startClient(t, d, "secret")
+	defer func() { _ = stop() }()
+
+	// The local units and the counterparts of the XLink units are subscribed
+	// once each.
+	want := map[UnitID]bool{"X4A1004-D1": true, "X4A1005-D2": true, "X4A1006-D1": true,
+		"X4A1005-E1": true, "X4A1005-E2": true, "X4A1006-E1": true}
+	for i := 1; i <= 5; i++ {
+		want[UnitID(fmt.Sprintf("X8A1001-E%d", i))] = true
+		want[UnitID(fmt.Sprintf("X8A1001-D%d", i))] = true
+	}
+	for range len(want) {
+		method, id := d.nextUnitRequest(t)
+		if method != "state.subscribe" || !want[id] {
+			t.Errorf("unit request %s %s", method, id)
+		}
+		delete(want, id)
+	}
+
+	// The fake device knows the configuration of E1 and D1 only.
+	sys := waitSystem(t, updates, "configurations", func(s System) bool {
+		e1, _ := s.Encoder("X8A1001-E1")
+		d1, _ := s.Decoder("X8A1001-D1")
+		return e1.Config != nil && d1.Config != nil
+	})
+	e1, _ := sys.Encoder("X8A1001-E1")
+	d1, _ := sys.Decoder("X8A1001-D1")
+	if e1.Config.Bitrate != 18 || d1.Config.Sender != "X8A1008-E1" || e1.Receiver.Config != nil {
+		t.Errorf("E1 config %+v receiver config %+v, D1 config %+v", e1.Config, e1.Receiver.Config, d1.Config)
+	}
+	if e2, _ := sys.Encoder("X8A1001-E2"); e2.Config != nil {
+		t.Errorf("E2 config = %+v, want nil for a rejected subscription", e2.Config)
+	}
+
+	// Changes are pushed as deltas.
+	d.push <- notification{"state.update", json.RawMessage(`{"id":"X8A1001-E1","dataid":2,"data":{"values":{"vTBR":25}}}`)}
+	sys = waitSystem(t, updates, "the new bitrate", func(s System) bool {
+		e1, _ := s.Encoder("X8A1001-E1")
+		return e1.Config != nil && e1.Config.Bitrate == 25
+	})
+	if e1, _ := sys.Encoder("X8A1001-E1"); e1.Config.Name != "Encoder 106" || !e1.Config.IntraRefresh {
+		t.Errorf("E1 config after update = %+v", e1.Config)
+	}
+
+	// A deleted unit is unsubscribed.
+	d.push <- notification{"systems.update", json.RawMessage(`{"sysid":"X8A1001","dataid":770,"data":{"local":{"enc":[{"id":"X8A1001-E2","delete":true}]}}}`)}
+	if method, id := d.nextUnitRequest(t); method != "state.unsubscribe" || id != "X8A1001-E2" {
+		t.Errorf("unit request %s %s, want state.unsubscribe X8A1001-E2", method, id)
+	}
 }

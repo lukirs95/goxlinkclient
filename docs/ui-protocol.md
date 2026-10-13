@@ -134,7 +134,16 @@ beim Öffnen eine Detailansicht und kündigen sie beim Schließen wieder.
 ```
 
 - `sysid` ist immer das **lokale** System, auch wenn die Unit zu einem Remote-System gehört
-  (z. B. `id:"X8A2222-E5"` über das lokale `X8A1111`).
+  (z. B. `id:"X8A2222-E5"` über das lokale `X8A1111`). Remote-Units liefern dieselben
+  `values`-Keys wie lokale.
+- Die Antwort ist 22–36 KB groß (`peers`, `ndifind`, `sdiDrivers` und die Optionslisten);
+  `values` selbst ist klein.
+- Solange das Abo besteht, pusht das Gerät **jede Änderung** als `state.update`:
+  `{"id":"<unit id>","dataid":<n>,"data":{"values":{…nur geänderte Keys…}, …}}`. `dataid`
+  zählt pro Abo ab `1` (Antwort) hoch. Ohne Änderung kommt nichts; mit einer Änderung kommen
+  oft `xlinkRTT` und `peers[].lastSeenT` mit. In 40 s mit zehn Abos kamen nur Updates
+  für tatsächlich geänderte Einstellungen (Beispiel: `{"values":{"vPIntraOn":false}}`).
+- Zehn gleichzeitige Abos auf einer Verbindung funktionierten ohne Auffälligkeiten.
 - Unit-IDs: `<sysid>-E<n>` (XLink-Encoder), `<sysid>-D<n>` (XLink-Decoder),
   `<sysid>-NdiE<n>` (NDI-Sender), `<sysid>-NdiD<n>` (NDI-Receiver), `<sysid>-srtE<n>` (SRT-Sender),
   `<sysid>-srtD<n>` (SRT-Receiver).

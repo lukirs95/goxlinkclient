@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 	"sync/atomic"
 
@@ -213,10 +214,13 @@ func (c *Client) Run(ctx context.Context) error {
 	// connClosed is closed when Connect returns, authDone when the
 	// authentication has finished.
 	connClosed, authDone := make(chan struct{}), make(chan struct{})
+	// readLoop tells subscribeUnits which units to subscribe and receives
+	// the responses.
+	want, results := make(chan map[UnitID]bool, 1), make(chan configResult, subscriptionBuffer)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		c.readLoop(ctx, subs, updates, stats)
+		c.readLoop(ctx, subs, updates, stats, want, results)
 	}()
 	go func() {
 		defer wg.Done()
@@ -227,6 +231,7 @@ func (c *Client) Run(ctx context.Context) error {
 		close(authDone)
 		if err == nil {
 			c.subscribeLocalStats(ctx)
+			c.subscribeUnits(ctx, want, results)
 		}
 	}()
 
@@ -267,6 +272,7 @@ type subscriptions struct {
 	delta      jsonrpc.Subscription
 	stats      jsonrpc.Subscription
 	localStats jsonrpc.Subscription
+	unitUpdate jsonrpc.Subscription
 	advice     jsonrpc.Subscription
 }
 
@@ -276,6 +282,7 @@ func newSubscriptions() subscriptions {
 		delta:      make(jsonrpc.Subscription, subscriptionBuffer),
 		stats:      make(jsonrpc.Subscription, subscriptionBuffer),
 		localStats: make(jsonrpc.Subscription, subscriptionBuffer),
+		unitUpdate: make(jsonrpc.Subscription, subscriptionBuffer),
 		advice:     make(jsonrpc.Subscription, subscriptionBuffer),
 	}
 }
@@ -286,6 +293,7 @@ func (s subscriptions) byMethod() map[jsonrpc.Method]jsonrpc.Subscription {
 		notifySystemsUpdate:  s.delta,
 		notifySystemsStats:   s.stats,
 		notifyLocalStats:     s.localStats,
+		notifyUnitUpdate:     s.unitUpdate,
 		notifyAuthentication: s.advice,
 	}
 }
@@ -303,11 +311,14 @@ func (c *Client) subscribeLocalStats(ctx context.Context) {
 	}
 }
 
-// readLoop merges system messages into the state, publishes snapshots and
-// forwards statistics until ctx is done.
-func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate]) {
+// readLoop merges system messages and unit configurations into the state,
+// publishes snapshots and forwards statistics until ctx is done. After every
+// snapshot it hands the units to subscribe to want.
+func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate],
+	want chan map[UnitID]bool, results <-chan configResult) {
 	var (
 		st     state
+		wanted map[UnitID]bool
 		system systemStats
 		// Statistics are sent completely every few seconds, so each invalid
 		// value is logged only once per connection.
@@ -322,12 +333,35 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		}
 	}
 
+	// publish hands out a snapshot and keeps the subscriptions in line with
+	// it: configurations of units that are gone are dropped, new units are
+	// expected.
+	publish := func() {
+		ids := c.publish(&st, updates).subscribable()
+		if maps.Equal(ids, wanted) {
+			return
+		}
+		wanted = ids
+		if st.configs == nil {
+			st.configs = configs{}
+		}
+		for id := range st.configs {
+			if !ids[id] {
+				delete(st.configs, id)
+			}
+		}
+		for id := range ids {
+			st.configs.expect(id)
+		}
+		setLatest(want, ids)
+	}
+
 	handleFull := func(n jsonrpc.Notification) {
 		if err := st.applyFull(n.Params); err != nil {
 			c.logger.Error("failed to apply full state", slog.Any("error", err))
 			return
 		}
-		c.publish(&st, updates)
+		publish()
 	}
 	handleDelta := func(n jsonrpc.Notification) {
 		gap, err := st.applyUpdate(n.Params)
@@ -341,7 +375,35 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		case gap:
 			c.logger.Warn("updates were lost, state may be incomplete until reconnect")
 		}
-		c.publish(&st, updates)
+		publish()
+	}
+	handleConfig := func(r configResult) {
+		if r.err != nil {
+			c.logger.Warn("unit configuration is not available", slog.String("unit", string(r.id)), slog.Any("error", r.err))
+			return
+		}
+		if st.configs[r.id] == nil {
+			return // no longer subscribed
+		}
+		if _, err := st.configs.applySubscribe(r.raw); err != nil {
+			c.logger.Error("failed to apply unit configuration", slog.String("unit", string(r.id)), slog.Any("error", err))
+			return
+		}
+		publish()
+	}
+	handleUnitUpdate := func(n jsonrpc.Notification) {
+		gap, err := st.configs.applyUpdate(n.Params)
+		switch {
+		case errors.Is(err, errStaleUpdate), errors.Is(err, errUnknownUnit):
+			c.logger.Debug("ignored unit update", slog.Any("reason", err))
+			return
+		case err != nil:
+			c.logger.Error("failed to apply unit update", slog.Any("error", err))
+			return
+		case gap:
+			c.logger.Warn("unit updates were lost, configuration may be incomplete until reconnect")
+		}
+		publish()
 	}
 	handleSystemStats := func(n jsonrpc.Notification) {
 		ss, issues, err := decodeSystemStats(n.Params)
@@ -385,6 +447,10 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		case n := <-subs.localStats:
 			drain(subs.stats, handleSystemStats)
 			handleLocalStats(n)
+		case r := <-results:
+			handleConfig(r)
+		case n := <-subs.unitUpdate:
+			handleUnitUpdate(n)
 		}
 	}
 }
@@ -401,9 +467,9 @@ func drain(ch jsonrpc.Subscription, handle func(jsonrpc.Notification)) {
 	}
 }
 
-// publish stores a snapshot of st and hands it to the updates channel. Values
-// that could not be decoded are logged.
-func (c *Client) publish(st *state, updates *latest[Update]) {
+// publish stores a snapshot of st, hands it to the updates channel and
+// returns it. Values that could not be decoded are logged.
+func (c *Client) publish(st *state, updates *latest[Update]) System {
 	sys, issues := st.snapshot()
 	for _, issue := range issues {
 		c.logger.Warn("ignored invalid value from device", slog.String("value", issue.String()))
@@ -418,4 +484,5 @@ func (c *Client) publish(st *state, updates *latest[Update]) {
 		delivered, _ := st.snapshot()
 		updates.put(Update{Client: c, System: delivered})
 	}
+	return sys
 }
