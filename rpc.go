@@ -13,6 +13,8 @@ import (
 const (
 	methodAuth           jsonrpc.Method = "auth"
 	methodConfig         jsonrpc.Method = "config"
+	methodReboot         jsonrpc.Method = "reboot"
+	methodShutdown       jsonrpc.Method = "shutdown"
 	methodStart          jsonrpc.Method = "start"
 	methodStop           jsonrpc.Method = "stop"
 	methodResetStats     jsonrpc.Method = "resetVstat"

@@ -61,6 +61,14 @@ func (c *Client) ConfigureTrunk(ctx context.Context, id TrunkID, settings ...Tru
 	return nil
 }
 
+func (c *Client) Reboot(ctx context.Context) error {
+	return c.callSystem(ctx, methodReboot, nil)
+}
+
+func (c *Client) Shutdown(ctx context.Context) error {
+	return c.callSystem(ctx, methodShutdown, nil)
+}
+
 // SetName renames the local system.
 func (c *Client) SetName(ctx context.Context, name string) error {
 	return c.callSystem(ctx, methodSystemName, map[string]any{"name": name})
