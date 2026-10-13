@@ -40,6 +40,10 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 ```
 
 - Nur geänderte Felder werden geschickt, auch verschachtelt (`values`, `receiver.values`).
+  Ausnahme sind die Zeitstempel `sysST`, `osST`, `startT` (laufende Units) und `linkTime`:
+  Sie stehen in **jedem** Update und schwanken dabei um ±1 s (z. B. `08:49:52` und
+  `08:49:53` im Wechsel), weil das Gerät sie aus der Uptime berechnet. Eine Änderung um
+  höchstens eine Sekunde ist also keine echte Änderung.
 - **Arrays sind per Schlüssel adressiert, nicht per Index:** `id` bei `enc`, `dec`,
   `network.nets` (und vermutlich `srt`, `ndi`, `l2s`), `sysid` bei `remote`.
 - **Neues Element:** kommt vollständig, inklusive `type` (= `stateType`) und `config:true`.
