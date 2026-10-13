@@ -645,9 +645,11 @@ func convertWhere[T any, P keyedElement[T], R any](c *collector, name string, l 
 	return out
 }
 
-func (p *wireParams) toSystem(c *collector) System {
+// toSystemInfo converts the fields of the local system that do not belong to
+// one of its elements.
+func (p *wireParams) toSystemInfo(c *collector) SystemInfo {
 	l := &p.Data.Local
-	sys := System{
+	info := SystemInfo{
 		ID:              SystemID(l.SysID),
 		Name:            l.Name,
 		Version:         l.SysVer,
@@ -664,9 +666,15 @@ func (p *wireParams) toSystem(c *collector) System {
 		},
 		TrunkMTU: c.int("mtuTrunk", &l.MTUTrunk),
 	}
-	if sys.ID == "" {
-		sys.ID = SystemID(p.SysID)
+	if info.ID == "" {
+		info.ID = SystemID(p.SysID)
 	}
+	return info
+}
+
+func (p *wireParams) toSystem(c *collector) System {
+	sys := System{SystemInfo: p.toSystemInfo(c)}
+	l := &p.Data.Local
 	sys.Encoders = convertList(c, "enc", &l.Enc, (*wireEncoder).toEncoder)
 	sys.Decoders = convertList(c, "dec", &l.Dec, (*wireDecoder).toDecoder)
 	sys.SRTEncoders = convertWhere(c, "srt", &l.SRT, ofType(UnitSRTEncoder), (*wireMediaUnit).toSRTEncoder)

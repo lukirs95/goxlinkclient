@@ -9,6 +9,22 @@ import (
 // systems.full and kept current by applying systems.update deltas. A System
 // returned by the Client is a copy and may be retained and modified freely.
 type System struct {
+	SystemInfo
+	Encoders    []Encoder
+	Decoders    []Decoder
+	SRTEncoders []SRTEncoder
+	SRTDecoders []SRTDecoder
+	NDIEncoders []NDIEncoder
+	NDIDecoders []NDIDecoder
+	Interfaces  []Interface
+	Trunks      []Trunk
+	// Peers are the configured remote systems.
+	Peers []Peer
+}
+
+// SystemInfo holds the fields of a system that do not belong to one of its
+// elements.
+type SystemInfo struct {
 	ID          SystemID
 	Name        string
 	Version     string
@@ -21,17 +37,7 @@ type System struct {
 	Profile Profile
 	Ports   Ports
 	// TrunkMTU is the default MTU of layer 2 trunks.
-	TrunkMTU    int
-	Encoders    []Encoder
-	Decoders    []Decoder
-	SRTEncoders []SRTEncoder
-	SRTDecoders []SRTDecoder
-	NDIEncoders []NDIEncoder
-	NDIDecoders []NDIDecoder
-	Interfaces  []Interface
-	Trunks      []Trunk
-	// Peers are the configured remote systems.
-	Peers []Peer
+	TrunkMTU int
 }
 
 // Profile identifies a configuration profile.
