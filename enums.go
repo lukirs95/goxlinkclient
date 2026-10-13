@@ -128,6 +128,31 @@ const (
 	VideoConversion720To1080  VideoConversion = "720c"
 )
 
+// HDRMode is the dynamic range of a video signal (key "vHDR").
+type HDRMode int
+
+const (
+	SDR    HDRMode = 0
+	HDR    HDRMode = 1
+	HDRPQ  HDRMode = 2
+	HDRHLG HDRMode = 3
+)
+
+func (m HDRMode) String() string {
+	switch m {
+	case SDR:
+		return "SDR"
+	case HDR:
+		return "HDR"
+	case HDRPQ:
+		return "HDR PQ (HDR10)"
+	case HDRHLG:
+		return "HDR HLG"
+	default:
+		return "HDRMode(" + strconv.Itoa(int(m)) + ")"
+	}
+}
+
 // SRTMode is the connection mode of an SRT unit (key "mode").
 type SRTMode int
 

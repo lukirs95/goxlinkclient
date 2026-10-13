@@ -91,11 +91,15 @@ func TestFullState18(t *testing.T) {
 	if enc.Receiver.ID != "X4A1004-D1" {
 		t.Errorf("Receiver.ID = %q, want X4A1004-D1", enc.Receiver.ID)
 	}
-	if enc.Receiver.Video != NoSignal || enc.Receiver.Video.Present() {
-		t.Errorf("Receiver.Video = %q, want %q", enc.Receiver.Video, NoSignal)
+	if enc.Receiver.VideoOut != NoSignal || enc.Receiver.VideoOut.Present() {
+		t.Errorf("Receiver.VideoOut = %q, want %q", enc.Receiver.VideoOut, NoSignal)
 	}
-	if !enc.StartedAt.IsZero() {
-		t.Errorf("StartedAt = %v, want zero time for the \"never\" placeholder", enc.StartedAt)
+	if !enc.CRF || enc.Receiver.SystemName != "NAME-6" || enc.Receiver.Card != VideoCardNone {
+		t.Errorf("CRF = %t, Receiver = %+v", enc.CRF, enc.Receiver)
+	}
+	// vHDR is a string for this encoder.
+	if enc.Connector != "sdi" || enc.HDR != SDR {
+		t.Errorf("Connector = %q HDR = %v, want sdi/SDR", enc.Connector, enc.HDR)
 	}
 
 	// An encoder without receiver reports "none".
@@ -107,8 +111,9 @@ func TestFullState18(t *testing.T) {
 	if !ok {
 		t.Fatal("decoder X8A1001-D1 not found")
 	}
-	if dec.SignalGenDelay != 60*time.Second || dec.Buffer != 1 || dec.AudioChannels != 0 {
-		t.Errorf("decoder = delay %v buffer %d channels %d, want 60s/1/0", dec.SignalGenDelay, dec.Buffer, dec.AudioChannels)
+	if dec.SignalGenDelay != 60*time.Second || dec.Connector != "sdi" || dec.RefLocked || dec.AVDelay != 0 {
+		t.Errorf("decoder = delay %v connector %q ref %t av %v, want 60s/sdi/false/0",
+			dec.SignalGenDelay, dec.Connector, dec.RefLocked, dec.AVDelay)
 	}
 	if dec.Sender.ID != "" {
 		t.Errorf("Sender.ID = %q, want empty for \"none\"", dec.Sender.ID)
@@ -141,6 +146,55 @@ func TestFullState18(t *testing.T) {
 	}
 	if other, _ := sys.Peer("X4A1007"); other.Port != 0 {
 		t.Errorf("peer X4A1007 Port = %d, want 0 (sent as \"0\")", other.Port)
+	}
+	// Reboot and shutdown times are only set while their flag is.
+	if !peer.RebootReceived.IsZero() || !peer.ShutdownReceived.IsZero() {
+		t.Errorf("peer reboot %v shutdown %v, want zero times", peer.RebootReceived, peer.ShutdownReceived)
+	}
+	if rebooted, _ := sys.Peer("X4A1006"); !rebooted.RebootReceived.Equal(mustTime(t, "2026-09-18 19:50:38 +0000")) {
+		t.Errorf("peer X4A1006 RebootReceived = %v", rebooted.RebootReceived)
+	}
+	if sys.CloudRegistered {
+		t.Error("CloudRegistered = true, want false")
+	}
+}
+
+func TestUpdateLinkedUnits(t *testing.T) {
+	st := loadState(t, "systems_full_1.8.json")
+	// Values as reported by a running pair; vCard and vHDR are strings.
+	mustApplyUpdate(t, st, []byte(`{"dataid":770,"data":{"local":{`+
+		`"enc":[{"id":"X8A1001-E1","receiver":{"values":{"vIn":"1080i50","aIn":"2 Ch 48 kHz",`+
+		`"vOut":"1080i50","aOut":"2 Ch 48 kHz","vCard":"1","vCardConn":"sdi","vHDR":"3","vRef":true,`+
+		`"avSync":false,"avUnSync":40,"connected":true,"running":true}}}],`+
+		`"dec":[{"id":"X8A1001-D3","values":{"avSync":true},"sender":{"values":{"vIn":"1080i50","aIn":"8 Ch 48 kHz",`+
+		`"vCard":"12","vCardConn":"sdi","vHDR":0,"vTBR":10.0,"vCodec":2,"vCRFOn":true,"connected":true,"running":true}}}]}}}`))
+	sys := mustSnapshot(t, st)
+
+	enc, _ := sys.Encoder("X8A1001-E1")
+	wantReceiver := LinkedReceiver{
+		LinkedUnit: LinkedUnit{
+			ID: "X4A1004-D1", Name: "DEC-7", SystemName: "NAME-6", Running: true, Connected: true,
+			Card: 1, Connector: "sdi", VideoIn: "1080i50", AudioIn: "2 Ch 48 kHz", HDR: HDRHLG,
+		},
+		VideoOut: "1080i50", AudioOut: "2 Ch 48 kHz", RefLocked: true, AVDelay: 40 * time.Millisecond,
+	}
+	if enc.Receiver != wantReceiver {
+		t.Errorf("Receiver = %+v\nwant       %+v", enc.Receiver, wantReceiver)
+	}
+
+	dec, _ := sys.Decoder("X8A1001-D3")
+	wantSender := LinkedSender{
+		LinkedUnit: LinkedUnit{
+			ID: "X4A1005-E1", Name: "ENC-18", SystemName: "NAME-11", Running: true, Connected: true,
+			Card: VideoCardST2110, Connector: "sdi", VideoIn: "1080i50", AudioIn: "8 Ch 48 kHz",
+		},
+		Codec: VideoCodecH265, CRF: true, Bitrate: 10,
+	}
+	if dec.Sender != wantSender {
+		t.Errorf("Sender = %+v\nwant     %+v", dec.Sender, wantSender)
+	}
+	if !dec.AVSync {
+		t.Error("AVSync = false, want true")
 	}
 }
 
@@ -292,7 +346,7 @@ func TestUpdateSRTAndNDI(t *testing.T) {
 	if !ok {
 		t.Fatal("NDI decoder X8A1001-NdiD6 not found")
 	}
-	if ndiDec.Source != "" || ndiDec.SourceConnected || ndiDec.FPSSync {
+	if ndiDec.Source != "" || ndiDec.SourceConnected || ndiDec.FPSSync || ndiDec.Connector != "sdi" || ndiDec.RefLocked {
 		t.Errorf("NDI decoder = %+v", ndiDec)
 	}
 	if len(sys.SRTEncoders) != 1 || len(sys.SRTDecoders) != 1 || len(sys.NDIEncoders) != 1 || len(sys.NDIDecoders) != 1 {

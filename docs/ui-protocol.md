@@ -54,6 +54,11 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   `srtMode`, `srtAddress`, `srtPort` (String), `srtLocalPort` (String), `srtEncrytion`
   (sic); dazu kommt `runError` auf Element-Ebene. NDI-Empfänger melden `ndiSource`,
   `ndiSourceName` und `ndiSourceCon`.
+- Die Gegenstelle (`enc[].receiver`, `dec[].sender`) trägt die Werte, die die UI auf der
+  Karte zeigt: `vIn`, `aIn`, `vCard`, `vCardConn`, `vHDR` (0 SDR, 1 HDR, 2 HDR PQ, 3 HDR
+  HLG), `connected`, `running`; der Receiver zusätzlich `vOut`, `aOut`, `vRef`, `avSync`,
+  `avUnSync`, der Sender `vCodec`, `vCRFOn` und `vTBR`.
+- AV-sync zeigt die UI als „In Sync“, wenn `avSync` gesetzt ist, sonst `avUnSync` (ms).
 - `vTBR` (Bitrate) steht in `systems.full` als Gleitkommazahl (`25.0`), beim Schreiben als
   Ganzzahl.
 - Innerhalb **einer** Nachricht sind Typen uneinheitlich: In `enc[].values` ist

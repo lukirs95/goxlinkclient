@@ -12,10 +12,11 @@ type System struct {
 	ID          SystemID
 	Name        string
 	Version     string
-	Beta        bool
 	ST2110      bool
 	NeedsReboot bool
-	StartedAt   time.Time
+	// CloudRegistered reports whether the system is registered with Cloud
+	// XLink.
+	CloudRegistered bool
 	// Profile is the running profile.
 	Profile Profile
 	Ports   Ports
@@ -63,10 +64,14 @@ type Peer struct {
 	Port           int
 	ConnectedSince time.Time
 	LastSeen       time.Time
-	ManualIP       ManualIP
-	Encoders       []PeerUnit
-	Decoders       []PeerUnit
-	Interfaces     []Interface
+	// RebootReceived and ShutdownReceived are the times the system announced
+	// a reboot or shutdown, or zero if it did not.
+	RebootReceived   time.Time
+	ShutdownReceived time.Time
+	ManualIP         ManualIP
+	Encoders         []PeerUnit
+	Decoders         []PeerUnit
+	Interfaces       []Interface
 }
 
 // ManualIP is the manual connection setting for a remote system.

@@ -27,10 +27,9 @@ type wireLocal struct {
 	SysID       string                                   `json:"sysid"`
 	Name        string                                   `json:"name"`
 	SysVer      string                                   `json:"sysVer"`
-	SysBeta     flexBool                                 `json:"sysBeta"`
 	ST2110      flexBool                                 `json:"st2110"`
 	NeedReboot  flexBool                                 `json:"needReboot"`
-	SysST       flexTime                                 `json:"sysST"`
+	CloudXLink  flexBool                                 `json:"cloudXlink"`
 	Profile     string                                   `json:"profile"`
 	ProfileName string                                   `json:"profileName"`
 	Ports       wirePorts                                `json:"ports"`
@@ -96,16 +95,18 @@ func (e *wireEncoder) key() string { return e.ID }
 
 type wireEncoderValues struct {
 	wireStreamValues
-	VIn      string   `json:"vIn"`
-	AIn      string   `json:"aIn"`
-	VCard    flexInt  `json:"vCard"`
-	VCodec   flexInt  `json:"vCodec"`
-	VTBR     flexInt  `json:"vTBR"`
-	VFEC     flexInt  `json:"vFEC"`
-	XLink    flexBool `json:"xLink"`
-	XLinkP2P flexBool `json:"xLinkp2p"`
-	Running  flexBool `json:"running"`
-	StartT   flexTime `json:"startT"`
+	VIn       string   `json:"vIn"`
+	AIn       string   `json:"aIn"`
+	VCard     flexInt  `json:"vCard"`
+	VCardConn string   `json:"vCardConn"`
+	VHDR      flexInt  `json:"vHDR"`
+	VCodec    flexInt  `json:"vCodec"`
+	VCRFOn    flexBool `json:"vCRFOn"`
+	VTBR      flexInt  `json:"vTBR"`
+	VFEC      flexInt  `json:"vFEC"`
+	XLink     flexBool `json:"xLink"`
+	XLinkP2P  flexBool `json:"xLinkp2p"`
+	Running   flexBool `json:"running"`
 }
 
 func (e *wireEncoder) toEncoder(c *collector) Encoder {
@@ -117,11 +118,13 @@ func (e *wireEncoder) toEncoder(c *collector) Encoder {
 		Name:      e.Name,
 		Enabled:   c.bool("enabled", &e.Enabled),
 		Running:   vc.bool("running", &v.Running),
-		StartedAt: vc.time("startT", &v.StartT),
 		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
 		AudioIn:   Signal(v.AIn),
+		HDR:       HDRMode(vc.int("vHDR", &v.VHDR)),
 		Codec:     VideoCodec(vc.int("vCodec", &v.VCodec)),
+		CRF:       vc.bool("vCRFOn", &v.VCRFOn),
 		Bitrate:   vc.int("vTBR", &v.VTBR),
 		FECLevel:  vc.int("vFEC", &v.VFEC),
 		Video2110: video,
@@ -131,7 +134,7 @@ func (e *wireEncoder) toEncoder(c *collector) Encoder {
 	}
 	c.merge(vc)
 	rc := c.scope("receiver")
-	enc.Receiver = e.Receiver.toLinked(rc, true)
+	enc.Receiver = e.Receiver.toReceiver(rc)
 	c.merge(rc)
 	return enc
 }
@@ -152,17 +155,18 @@ type wireDecoderValues struct {
 	AIn       string   `json:"aIn"`
 	VOut      string   `json:"vOut"`
 	AOut      string   `json:"aOut"`
-	AInCh     flexInt  `json:"aInCh"`
 	VCard     flexInt  `json:"vCard"`
+	VCardConn string   `json:"vCardConn"`
+	VHDR      flexInt  `json:"vHDR"`
+	VRef      flexBool `json:"vRef"`
+	AVSync    flexBool `json:"avSync"`
+	AVUnSync  flexInt  `json:"avUnSync"`
 	VBnoInOn  flexBool `json:"vBnoInOn"`
 	VBnoIn    flexInt  `json:"vBnoIn"`
-	VBufferOn flexBool `json:"vBufferOn"`
-	VBuffer   flexInt  `json:"vBuffer"`
 	VFRCOn    flexBool `json:"vFRCOn"`
 	XLink     flexBool `json:"xLink"`
 	XLinkP2P  flexBool `json:"xLinkp2p"`
 	Running   flexBool `json:"running"`
-	StartT    flexTime `json:"startT"`
 }
 
 func (d *wireDecoder) toDecoder(c *collector) Decoder {
@@ -174,17 +178,18 @@ func (d *wireDecoder) toDecoder(c *collector) Decoder {
 		Name:           d.Name,
 		Enabled:        c.bool("enabled", &d.Enabled),
 		Running:        vc.bool("running", &v.Running),
-		StartedAt:      vc.time("startT", &v.StartT),
 		Card:           VideoCard(vc.int("vCard", &v.VCard)),
+		Connector:      v.VCardConn,
 		VideoIn:        Signal(v.VIn),
 		AudioIn:        Signal(v.AIn),
 		VideoOut:       Signal(v.VOut),
 		AudioOut:       Signal(v.AOut),
-		AudioChannels:  vc.int("aInCh", &v.AInCh),
+		HDR:            HDRMode(vc.int("vHDR", &v.VHDR)),
+		RefLocked:      vc.bool("vRef", &v.VRef),
+		AVSync:         vc.bool("avSync", &v.AVSync),
+		AVDelay:        time.Duration(vc.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
 		SignalGenOn:    vc.bool("vBnoInOn", &v.VBnoInOn),
 		SignalGenDelay: time.Duration(vc.int("vBnoIn", &v.VBnoIn)) * time.Second,
-		BufferOn:       vc.bool("vBufferOn", &v.VBufferOn),
-		Buffer:         vc.int("vBuffer", &v.VBuffer),
 		FPSSync:        vc.bool("vFRCOn", &v.VFRCOn),
 		Video2110:      video,
 		Audio2110:      audio,
@@ -193,7 +198,7 @@ func (d *wireDecoder) toDecoder(c *collector) Decoder {
 	}
 	c.merge(vc)
 	sc := c.scope("sender")
-	dec.Sender = d.Sender.toLinked(sc, false)
+	dec.Sender = d.Sender.toSender(sc)
 	c.merge(sc)
 	return dec
 }
@@ -218,6 +223,10 @@ type wireMediaUnitValues struct {
 	VIn           string   `json:"vIn"`
 	VOut          string   `json:"vOut"`
 	VCard         flexInt  `json:"vCard"`
+	VCardConn     string   `json:"vCardConn"`
+	VRef          flexBool `json:"vRef"`
+	AVSync        flexBool `json:"avSync"`
+	AVUnSync      flexInt  `json:"avUnSync"`
 	VTBR          flexInt  `json:"vTBR"`
 	SRTMode       flexInt  `json:"srtMode"`
 	SRTAddress    string   `json:"srtAddress"`
@@ -229,7 +238,6 @@ type wireMediaUnitValues struct {
 	NDISourceCon  flexBool `json:"ndiSourceCon"`
 	VFRCOn        flexBool `json:"vFRCOn"`
 	Running       flexBool `json:"running"`
-	StartT        flexTime `json:"startT"`
 }
 
 func (u *wireMediaUnit) srtConnection(c *collector) SRTConnection {
@@ -251,9 +259,9 @@ func (u *wireMediaUnit) toSRTEncoder(c *collector) SRTEncoder {
 		Name:      u.Name,
 		Enabled:   c.bool("enabled", &u.Enabled),
 		Running:   vc.bool("running", &v.Running),
-		StartedAt: vc.time("startT", &v.StartT),
 		Error:     u.RunError,
 		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
 		Bitrate:   vc.int("vTBR", &v.VTBR),
 		SRT:       u.srtConnection(vc),
@@ -270,9 +278,9 @@ func (u *wireMediaUnit) toSRTDecoder(c *collector) SRTDecoder {
 		Name:      u.Name,
 		Enabled:   c.bool("enabled", &u.Enabled),
 		Running:   vc.bool("running", &v.Running),
-		StartedAt: vc.time("startT", &v.StartT),
 		Error:     u.RunError,
 		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
 		VideoOut:  Signal(v.VOut),
 		SRT:       u.srtConnection(vc),
@@ -289,8 +297,8 @@ func (u *wireMediaUnit) toNDIEncoder(c *collector) NDIEncoder {
 		Name:      u.Name,
 		Enabled:   c.bool("enabled", &u.Enabled),
 		Running:   vc.bool("running", &v.Running),
-		StartedAt: vc.time("startT", &v.StartT),
 		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
 		VideoOut:  Signal(v.VOut),
 	}
@@ -306,13 +314,16 @@ func (u *wireMediaUnit) toNDIDecoder(c *collector) NDIDecoder {
 		Name:            u.Name,
 		Enabled:         c.bool("enabled", &u.Enabled),
 		Running:         vc.bool("running", &v.Running),
-		StartedAt:       vc.time("startT", &v.StartT),
 		Card:            VideoCard(vc.int("vCard", &v.VCard)),
+		Connector:       v.VCardConn,
 		VideoIn:         Signal(v.VIn),
 		VideoOut:        Signal(v.VOut),
 		Source:          v.NDISource,
 		SourceName:      v.NDISourceName,
 		SourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
+		RefLocked:       vc.bool("vRef", &v.VRef),
+		AVSync:          vc.bool("avSync", &v.AVSync),
+		AVDelay:         time.Duration(vc.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
 		FPSSync:         vc.bool("vFRCOn", &v.VFRCOn),
 	}
 	c.merge(vc)
@@ -334,37 +345,66 @@ type wireLinked struct {
 }
 
 type wireLinkedValues struct {
-	VIn        string   `json:"vIn"`
-	AIn        string   `json:"aIn"`
-	VOut       string   `json:"vOut"`
-	AOut       string   `json:"aOut"`
-	Connected  flexBool `json:"connected"`
-	XLinkP2P   flexBool `json:"xLinkp2p"`
-	OnLocalNet flexBool `json:"onLocalNet"`
-	Running    flexBool `json:"running"`
+	VIn       string   `json:"vIn"`
+	AIn       string   `json:"aIn"`
+	VOut      string   `json:"vOut"`
+	AOut      string   `json:"aOut"`
+	VCard     flexInt  `json:"vCard"`
+	VCardConn string   `json:"vCardConn"`
+	VHDR      flexInt  `json:"vHDR"`
+	VRef      flexBool `json:"vRef"`
+	AVSync    flexBool `json:"avSync"`
+	AVUnSync  flexInt  `json:"avUnSync"`
+	VCodec    flexInt  `json:"vCodec"`
+	VCRFOn    flexBool `json:"vCRFOn"`
+	VTBR      flexInt  `json:"vTBR"`
+	Connected flexBool `json:"connected"`
+	Running   flexBool `json:"running"`
 }
 
-// toLinked converts the counterpart. For a receiver its outputs are the
-// relevant signals, for a sender its inputs.
-func (l *wireLinked) toLinked(c *collector, receiver bool) LinkedUnit {
+// toLinked converts the values shared by receivers and senders.
+func (l *wireLinked) toLinked(c *collector) LinkedUnit {
 	v := &l.Values
-	vc := c.scope("values")
-	u := LinkedUnit{
+	return LinkedUnit{
 		ID:         unitID(l.ID),
 		Name:       l.Name,
 		SystemName: l.SysName,
-		Running:    vc.bool("running", &v.Running),
-		Connected:  vc.bool("connected", &v.Connected),
-		P2P:        vc.bool("xLinkp2p", &v.XLinkP2P),
-		OnLocalNet: vc.bool("onLocalNet", &v.OnLocalNet),
-		Video:      Signal(v.VIn),
-		Audio:      Signal(v.AIn),
+		Running:    c.bool("running", &v.Running),
+		Connected:  c.bool("connected", &v.Connected),
+		Card:       VideoCard(c.int("vCard", &v.VCard)),
+		Connector:  v.VCardConn,
+		VideoIn:    Signal(v.VIn),
+		AudioIn:    Signal(v.AIn),
+		HDR:        HDRMode(c.int("vHDR", &v.VHDR)),
 	}
-	if receiver {
-		u.Video, u.Audio = Signal(v.VOut), Signal(v.AOut)
+}
+
+func (l *wireLinked) toReceiver(c *collector) LinkedReceiver {
+	v := &l.Values
+	vc := c.scope("values")
+	r := LinkedReceiver{
+		LinkedUnit: l.toLinked(vc),
+		VideoOut:   Signal(v.VOut),
+		AudioOut:   Signal(v.AOut),
+		RefLocked:  vc.bool("vRef", &v.VRef),
+		AVSync:     vc.bool("avSync", &v.AVSync),
+		AVDelay:    time.Duration(vc.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
 	}
 	c.merge(vc)
-	return u
+	return r
+}
+
+func (l *wireLinked) toSender(c *collector) LinkedSender {
+	v := &l.Values
+	vc := c.scope("values")
+	s := LinkedSender{
+		LinkedUnit: l.toLinked(vc),
+		Codec:      VideoCodec(vc.int("vCodec", &v.VCodec)),
+		CRF:        vc.bool("vCRFOn", &v.VCRFOn),
+		Bitrate:    vc.int("vTBR", &v.VTBR),
+	}
+	c.merge(vc)
+	return s
 }
 
 type wireInterface struct {
@@ -482,6 +522,10 @@ type wirePeer struct {
 	ConPort    flexInt                                `json:"conPort"`
 	ConnectedT flexTime                               `json:"connectedT"`
 	LastSeenT  flexTime                               `json:"lastSeenT"`
+	Reboot     flexBool                               `json:"reboot"`
+	RebootT    flexTime                               `json:"rebootT"`
+	Shutdown   flexBool                               `json:"shutdown"`
+	ShutdownT  flexTime                               `json:"shutdownT"`
 	ManIP      string                                 `json:"manIp"`
 	ManIPSec   string                                 `json:"manIpSec"`
 	ManPort    flexInt                                `json:"manPort"`
@@ -539,6 +583,13 @@ func (p *wirePeer) toPeer(c *collector) Peer {
 			AutoConnect: c.bool("manAutCon", &p.ManAutCon),
 		},
 	}
+	// The web UI shows the times only while the flags are set.
+	if c.bool("reboot", &p.Reboot) {
+		peer.RebootReceived = c.time("rebootT", &p.RebootT)
+	}
+	if c.bool("shutdown", &p.Shutdown) {
+		peer.ShutdownReceived = c.time("shutdownT", &p.ShutdownT)
+	}
 	peer.Encoders = convertList(c, "enc", &p.Enc, (*wirePeerUnit).toPeerUnit)
 	peer.Decoders = convertList(c, "dec", &p.Dec, (*wirePeerUnit).toPeerUnit)
 	peer.Interfaces = convertList(c, "nets", &p.Network.Nets, (*wireInterface).toInterface)
@@ -572,14 +623,13 @@ func convertWhere[T any, P keyedElement[T], R any](c *collector, name string, l 
 func (p *wireParams) toSystem(c *collector) System {
 	l := &p.Data.Local
 	sys := System{
-		ID:          SystemID(l.SysID),
-		Name:        l.Name,
-		Version:     l.SysVer,
-		Beta:        c.bool("sysBeta", &l.SysBeta),
-		ST2110:      c.bool("st2110", &l.ST2110),
-		NeedsReboot: c.bool("needReboot", &l.NeedReboot),
-		StartedAt:   c.time("sysST", &l.SysST),
-		Profile:     Profile{ID: l.Profile, Name: l.ProfileName},
+		ID:              SystemID(l.SysID),
+		Name:            l.Name,
+		Version:         l.SysVer,
+		ST2110:          c.bool("st2110", &l.ST2110),
+		NeedsReboot:     c.bool("needReboot", &l.NeedReboot),
+		CloudRegistered: c.bool("cloudXlink", &l.CloudXLink),
+		Profile:         Profile{ID: l.Profile, Name: l.ProfileName},
 		Ports: Ports{
 			SystemStatic: c.bool("ports.sysOn", &l.Ports.SysOn),
 			SystemPort:   c.int("ports.sysPort", &l.Ports.SysPort),

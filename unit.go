@@ -26,15 +26,21 @@ type Stream struct {
 
 // Encoder is an XLink encoder of the local system.
 type Encoder struct {
-	ID        UnitID
-	Name      string
-	Enabled   bool
-	Running   bool
-	StartedAt time.Time
-	Card      VideoCard
+	ID      UnitID
+	Name    string
+	Enabled bool
+	Running bool
+	Card    VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
 	VideoIn   Signal
 	AudioIn   Signal
-	Codec     VideoCodec
+	// HDR is the dynamic range of the video input.
+	HDR   HDRMode
+	Codec VideoCodec
+	// CRF reports whether constant rate factor encoding is on; Bitrate is
+	// then the maximum bitrate.
+	CRF bool
 	// Bitrate is the target bitrate in Mbps.
 	Bitrate   int
 	FECLevel  int
@@ -46,29 +52,34 @@ type Encoder struct {
 	P2P bool
 	// Receiver is the decoder this encoder sends to. Its ID is empty if no
 	// receiver is selected.
-	Receiver LinkedUnit
+	Receiver LinkedReceiver
 }
 
 // Decoder is an XLink decoder of the local system.
 type Decoder struct {
-	ID        UnitID
-	Name      string
-	Enabled   bool
-	Running   bool
-	StartedAt time.Time
-	Card      VideoCard
+	ID      UnitID
+	Name    string
+	Enabled bool
+	Running bool
+	Card    VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
 	VideoIn   Signal
 	AudioIn   Signal
 	VideoOut  Signal
 	AudioOut  Signal
-	// AudioChannels is the number of received audio channels.
-	AudioChannels int
+	// HDR is the dynamic range of the video output.
+	HDR HDRMode
+	// RefLocked reports whether the output is locked to the reference.
+	RefLocked bool
+	// AVSync reports whether audio and video are in sync; otherwise AVDelay
+	// is the offset between them.
+	AVSync  bool
+	AVDelay time.Duration
 	// SignalGenOn enables the signal generator when no input is received.
 	SignalGenOn bool
 	// SignalGenDelay is the time without input before the generator starts.
 	SignalGenDelay time.Duration
-	BufferOn       bool
-	Buffer         int
 	FPSSync        bool
 	Video2110      Stream
 	Audio2110      Stream
@@ -78,20 +89,21 @@ type Decoder struct {
 	P2P bool
 	// Sender is the encoder this decoder receives from. Its ID is empty if no
 	// sender is selected.
-	Sender LinkedUnit
+	Sender LinkedSender
 }
 
 // SRTEncoder is an SRT sender of the local system.
 type SRTEncoder struct {
-	ID        UnitID
-	Name      string
-	Enabled   bool
-	Running   bool
-	StartedAt time.Time
+	ID      UnitID
+	Name    string
+	Enabled bool
+	Running bool
 	// Error is the last error reported while running, or "".
-	Error   string
-	Card    VideoCard
-	VideoIn Signal
+	Error string
+	Card  VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
+	VideoIn   Signal
 	// Bitrate is the video bitrate in Mbps.
 	Bitrate int
 	SRT     SRTConnection
@@ -99,17 +111,18 @@ type SRTEncoder struct {
 
 // SRTDecoder is an SRT receiver of the local system.
 type SRTDecoder struct {
-	ID        UnitID
-	Name      string
-	Enabled   bool
-	Running   bool
-	StartedAt time.Time
+	ID      UnitID
+	Name    string
+	Enabled bool
+	Running bool
 	// Error is the last error reported while running, or "".
-	Error    string
-	Card     VideoCard
-	VideoIn  Signal
-	VideoOut Signal
-	SRT      SRTConnection
+	Error string
+	Card  VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
+	VideoIn   Signal
+	VideoOut  Signal
+	SRT       SRTConnection
 }
 
 // SRTConnection describes how an SRT unit connects.
@@ -126,26 +139,34 @@ type SRTConnection struct {
 
 // NDIEncoder converts an SDI input of the local system to an NDI stream.
 type NDIEncoder struct {
-	ID        UnitID
-	Name      string
-	Enabled   bool
-	Running   bool
-	StartedAt time.Time
-	Card      VideoCard
+	ID      UnitID
+	Name    string
+	Enabled bool
+	Running bool
+	Card    VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
 	VideoIn   Signal
 	VideoOut  Signal
 }
 
 // NDIDecoder outputs an NDI stream on an SDI output of the local system.
 type NDIDecoder struct {
-	ID        UnitID
-	Name      string
-	Enabled   bool
-	Running   bool
-	StartedAt time.Time
-	Card      VideoCard
+	ID      UnitID
+	Name    string
+	Enabled bool
+	Running bool
+	Card    VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
 	VideoIn   Signal
 	VideoOut  Signal
+	// RefLocked reports whether the output is locked to the reference.
+	RefLocked bool
+	// AVSync reports whether audio and video are in sync; otherwise AVDelay
+	// is the offset between them.
+	AVSync  bool
+	AVDelay time.Duration
 	// Source is the selected NDI source and SourceName its display name.
 	Source          string
 	SourceName      string
@@ -161,10 +182,35 @@ type LinkedUnit struct {
 	SystemName string
 	Running    bool
 	Connected  bool
-	P2P        bool
-	OnLocalNet bool
-	// Video and Audio are the signals of the counterpart: its inputs for a
-	// sender, its outputs for a receiver.
-	Video Signal
-	Audio Signal
+	Card       VideoCard
+	// Connector is the connector type of Card, e.g. "sdi".
+	Connector string
+	VideoIn   Signal
+	AudioIn   Signal
+	// HDR is the dynamic range of the video input of a sender or of the video
+	// output of a receiver.
+	HDR HDRMode
+}
+
+// LinkedReceiver is the decoder a local encoder sends to.
+type LinkedReceiver struct {
+	LinkedUnit
+	VideoOut  Signal
+	AudioOut  Signal
+	RefLocked bool
+	// AVSync reports whether audio and video are in sync; otherwise AVDelay
+	// is the offset between them.
+	AVSync  bool
+	AVDelay time.Duration
+}
+
+// LinkedSender is the encoder a local decoder receives from.
+type LinkedSender struct {
+	LinkedUnit
+	Codec VideoCodec
+	// CRF reports whether constant rate factor encoding is on; Bitrate is
+	// then the maximum bitrate.
+	CRF bool
+	// Bitrate is the target bitrate in Mbps.
+	Bitrate int
 }
