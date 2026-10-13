@@ -8,6 +8,7 @@ import (
 	"maps"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	jsonrpc "github.com/lukirs95/gojsonrpc/v2"
 )
@@ -15,6 +16,11 @@ import (
 // readLimit is the maximum size of a message from the device. It must hold
 // unexpectedly large history blocks of systems.localStatsHistory (600 KB).
 const readLimit = 1 << 20
+
+// requestTimeout is how long a request waits for its response, as in the web
+// UI. Requests for units of remote systems are forwarded by the local system
+// and take up to a few seconds.
+const requestTimeout = 5 * time.Second
 
 var (
 	// ErrNoCredentials is returned by Run if WithCredentials was not given.
@@ -113,6 +119,7 @@ func New(addr string, opts ...Option) *Client {
 	}
 	c.logger = c.logger.With(slog.String("system", addr))
 	c.jrpc.SetReadLimit(readLimit)
+	c.jrpc.SetRequestTimeout(requestTimeout)
 	return c
 }
 
