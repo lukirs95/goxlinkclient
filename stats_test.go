@@ -98,8 +98,8 @@ func TestMergeStats(t *testing.T) {
 		t.Errorf("unexpected decode issue: %v", issue)
 	}
 
-	if s.Health.CPUTemp != 63 || len(s.Peers) != 1 {
-		t.Errorf("Health %+v peers %d", s.Health, len(s.Peers))
+	if s.Health.CPUTemp != 63 || len(s.Peers) != 1 || len(s.SRTEncoders) != 0 || len(s.SRTDecoders) != 0 {
+		t.Errorf("Health %+v peers %d srt %d/%d", s.Health, len(s.Peers), len(s.SRTEncoders), len(s.SRTDecoders))
 	}
 
 	// The local decoder keeps its values and gains those of systems.stats.
@@ -132,6 +132,51 @@ func TestMergeStats(t *testing.T) {
 	e1 := findStats(t, s.Encoders, "X8A1001-E1")
 	if !e1.XLink.ACK || len(e1.Audio) != 0 || e1.Receiver.StatsTime != 0 {
 		t.Errorf("E1 = %+v", e1)
+	}
+}
+
+func TestMergeStatsSRT(t *testing.T) {
+	ss, issues, err := decodeSystemStats(readFixture(t, "stats_system_srt_1.8.json"))
+	if err != nil {
+		t.Fatalf("decodeSystemStats: %v", err)
+	}
+	s, mergeIssues := mergeStats(localStats{}, ss)
+	for _, issue := range append(issues, mergeIssues...) {
+		t.Errorf("unexpected decode issue: %v", issue)
+	}
+	if len(s.SRTEncoders) != 1 || len(s.SRTDecoders) != 1 {
+		t.Fatalf("SRT units %d/%d, want 1/1", len(s.SRTEncoders), len(s.SRTDecoders))
+	}
+
+	// A listener reports one connection per caller.
+	enc := s.SRTEncoders[0]
+	wantEnc := SRTEncoderStats{
+		ID: "X8A1001-srtE1", Uptime: 204 * time.Second, StatsTime: 193 * time.Second, Clients: 1,
+		Connections: []SRTSendStats{{
+			Peer: "10.0.0.2", Bitrate: 7.92725, RTT: 22 * time.Microsecond, Latency: 250 * time.Millisecond,
+			Sent: 107222, ACK: 8383,
+		}},
+	}
+	if enc.ID != wantEnc.ID || enc.Uptime != wantEnc.Uptime || enc.StatsTime != wantEnc.StatsTime ||
+		enc.Clients != wantEnc.Clients || !slices.Equal(enc.Connections, wantEnc.Connections) {
+		t.Errorf("SRT encoder = %+v, want %+v", enc, wantEnc)
+	}
+
+	// A caller reports its connection directly.
+	dec := s.SRTDecoders[0]
+	wantConn := SRTReceiveStats{
+		Bitrate: 7.92164, RTT: 17 * time.Microsecond, Latency: 250 * time.Millisecond,
+		Received: 107406, ACK: 8404,
+	}
+	if dec.ID != "X8A1001-srtD1" || dec.Clients != 0 || len(dec.Connections) != 1 || dec.Connections[0] != wantConn {
+		t.Errorf("SRT decoder = %+v, want connection %+v", dec, wantConn)
+	}
+
+	// Every Stats value has its own slices.
+	again, _ := mergeStats(localStats{}, ss)
+	again.SRTEncoders[0].Connections[0].Sent = 0
+	if s.SRTEncoders[0].Connections[0].Sent != 107222 {
+		t.Error("Stats values share SRT connections")
 	}
 }
 
@@ -179,7 +224,8 @@ func TestDecodeStatsInvalidValues(t *testing.T) {
 
 func TestMergeStatsInvalidValues(t *testing.T) {
 	ss, issues, err := decodeSystemStats([]byte(`{"sysid":"X8A1001","data":{"local":[` +
-		`{"id":"X8A1001-D1","type":2,"data":{"vDecFps":"slow","vDstats":{"total":5}}}],"remote":[]}}`))
+		`{"id":"X8A1001-D1","type":2,"data":{"vDecFps":"slow","vDstats":{"total":5}}},` +
+		`{"id":"X8A1001-srtD1","type":9,"data":{"upTime":1,"srtStats":{"mode":"Caller","msRTT":"?"}}}],"remote":[]}}`))
 	if err != nil || len(issues) != 0 {
 		t.Fatalf("decodeSystemStats: %v, issues %v", err, issues)
 	}
@@ -187,10 +233,11 @@ func TestMergeStatsInvalidValues(t *testing.T) {
 
 	// Invalid values are reported when they are merged, once.
 	s, issues := mergeStats(ls, ss)
-	if len(issues) != 1 || issues[0].Key != "X8A1001-D1.vDecFps" {
-		t.Errorf("issues = %v, want key X8A1001-D1.vDecFps", issues)
+	wantKeys := []string{"X8A1001-D1.vDecFps", "X8A1001-srtD1.srtStats.msRTT"}
+	if len(issues) != len(wantKeys) || issues[0].Key != wantKeys[0] || issues[1].Key != wantKeys[1] {
+		t.Errorf("issues = %v, want keys %v", issues, wantKeys)
 	}
-	if s.Decoders[0].Video.Total != 5 {
+	if s.Decoders[0].Video.Total != 5 || len(s.SRTDecoders) != 1 || s.SRTDecoders[0].Uptime != time.Second {
 		t.Errorf("Stats = %+v", s)
 	}
 	if _, issues := mergeStats(ls, ss); len(issues) != 0 {

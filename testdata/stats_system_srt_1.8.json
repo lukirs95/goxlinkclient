@@ -1,0 +1,83 @@
+{
+  "sysid": "X8A1001",
+  "dataid": 1,
+  "data": {
+    "time": "2026-10-13 08:58:25 +0000",
+    "local": [
+      {
+        "id": "X8A1001",
+        "type": 0,
+        "data": {
+          "ptpSync": true,
+          "ptpSyncLocal": false,
+          "ptp": true,
+          "nmos": true,
+          "osUpTime": 86940,
+          "cpu": 8,
+          "cpuTemp": 60,
+          "sysTemp": 0,
+          "vTotRun": 5,
+          "vLic": 8,
+          "vLicDec": 4,
+          "vLicUsed": 3,
+          "vLicUsedDec": 2
+        }
+      },
+      {
+        "id": "X8A1001-srtE1",
+        "type": 8,
+        "data": {
+          "vInFps": 0,
+          "vOutFps": 0,
+          "srtStats": {
+            "srt": "sender",
+            "type": "stats",
+            "mode": "Listener",
+            "callersNr": "1",
+            "callers": {
+              "10.0.0.2": {
+                "id": "10.0.0.2",
+                "mbpsSendRate": "7.92725",
+                "msSndBuf": "0",
+                "pktRecvACK": "8383",
+                "pktRecvNAK": "0",
+                "msRTT": "0.022",
+                "pktSent": "107222",
+                "pktSndLoss": "0",
+                "pktRetrans": "0",
+                "msSndTsbPdDelay": "250"
+              }
+            }
+          },
+          "upTime": 204,
+          "statsTime": 193
+        }
+      },
+      {
+        "id": "X8A1001-srtD1",
+        "type": 9,
+        "data": {
+          "vInFps": 0,
+          "vOutFps": 0,
+          "srtStats": {
+            "srt": "receiver",
+            "type": "stats",
+            "mode": "Caller",
+            "mbpsRecvRate": "7.92164",
+            "msRcvBuf": "0",
+            "pktSentACK": "8404",
+            "pktSentNAK": "0",
+            "msRTT": "0.017",
+            "pktRecvTotal": "107406",
+            "pktRcvLossTotal": "0",
+            "pktRcvDropTotal": "0",
+            "msRcvTsbPdDelay": "250"
+          },
+          "upTime": 149,
+          "statsTime": 147
+        }
+      }
+    ],
+    "remote": []
+  }
+}

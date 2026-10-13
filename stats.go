@@ -14,10 +14,10 @@ import (
 // The device sends statistics in two messages. systems.localStats carries the
 // local XLink units and the active interfaces together with their
 // counterparts; the web UI plots it. systems.stats carries every unit of the
-// local and the remote systems and the system health; the web UI shows it as
-// text. Stats contains the values the web UI shows: those of
-// systems.localStats, completed with the values only systems.stats reports,
-// matched by unit ID.
+// local and the remote systems, including SRT units, and the system
+// health; the web UI shows it as text. Stats contains the values the web UI
+// shows: those of systems.localStats, completed with the values only
+// systems.stats reports, matched by unit ID.
 
 // Stats combines the unit and interface statistics of systems.localStats with
 // the most recent systems.stats message. A Stats value is delivered for every
@@ -27,10 +27,12 @@ type Stats struct {
 	System SystemID
 	Time   time.Time
 	// Health is the most recent system health.
-	Health     Health
-	Interfaces []InterfaceStats
-	Encoders   []EncoderStats
-	Decoders   []DecoderStats
+	Health      Health
+	Interfaces  []InterfaceStats
+	Encoders    []EncoderStats
+	Decoders    []DecoderStats
+	SRTEncoders []SRTEncoderStats
+	SRTDecoders []SRTDecoderStats
 	// Peers are the remote systems reported by systems.stats.
 	Peers []PeerStats
 }
@@ -200,11 +202,75 @@ type BufferStats struct {
 	Min     time.Duration
 }
 
+// SRTEncoderStats are the statistics of a local SRT sender. A stopped
+// unit reports zero Uptime and StatsTime but keeps its last connection values;
+// the web UI shows Clients only while the unit is running.
+type SRTEncoderStats struct {
+	ID     UnitID
+	Uptime time.Duration
+	// StatsTime is the time the counters have been collected for.
+	StatsTime time.Duration
+	// Clients is the number of connected callers in listener mode.
+	Clients int
+	// Connections holds one entry per connected caller in listener mode and
+	// a single entry in caller mode.
+	Connections []SRTSendStats
+}
+
+// SRTSendStats are the statistics of an outgoing SRT connection.
+type SRTSendStats struct {
+	// Peer is the address of the caller in listener mode, "" in caller mode.
+	Peer string
+	// Bitrate is in Mbps.
+	Bitrate float64
+	RTT     time.Duration
+	Latency time.Duration
+	Buffer  time.Duration
+	Sent    int64
+	Lost    int64
+	Resent  int64
+	ACK     int64
+	NAK     int64
+}
+
+// SRTDecoderStats are the statistics of a local SRT receiver. A stopped
+// unit reports zero Uptime and StatsTime but keeps its last connection values;
+// the web UI shows Clients only while the unit is running.
+type SRTDecoderStats struct {
+	ID     UnitID
+	Uptime time.Duration
+	// StatsTime is the time the counters have been collected for.
+	StatsTime time.Duration
+	// Clients is the number of connected callers in listener mode.
+	Clients int
+	// Connections holds one entry per connected caller in listener mode and
+	// a single entry in caller mode.
+	Connections []SRTReceiveStats
+}
+
+// SRTReceiveStats are the statistics of an incoming SRT connection.
+type SRTReceiveStats struct {
+	// Peer is the address of the caller in listener mode, "" in caller mode.
+	Peer string
+	// Bitrate is in Mbps.
+	Bitrate  float64
+	RTT      time.Duration
+	Latency  time.Duration
+	Buffer   time.Duration
+	Received int64
+	Lost     int64
+	Dropped  int64
+	ACK      int64
+	NAK      int64
+}
+
 // Stats item types used by both statistics messages.
 const (
-	statsTypeSystem  = 0 // the system itself and its interfaces
-	statsTypeEncoder = 1
-	statsTypeDecoder = 2
+	statsTypeSystem     = 0 // the system itself and its interfaces
+	statsTypeEncoder    = 1
+	statsTypeDecoder    = 2
+	statsTypeSRTEncoder = 8
+	statsTypeSRTDecoder = 9
 )
 
 // errBadStats is wrapped by errors for statistics messages that cannot be read
@@ -255,7 +321,7 @@ type wireAudioLevel struct {
 }
 
 // flexObject is a JSON object whose keys are not used, e.g. the audio
-// channels. An array is accepted as well, as an empty
+// channels or the SRT callers. An array is accepted as well, as an empty
 // collection might be encoded as [].
 type flexObject[T any] []T
 
@@ -611,13 +677,109 @@ func findHealth(c *collector, id string, items []wireStatsItem) (Health, float64
 	return Health{}, 0, false
 }
 
-// systemStats is a decoded systems.stats message. The XLink units of all
+// wireSRTConnection holds the keys of outgoing and incoming SRT connections.
+type wireSRTConnection struct {
+	ID              string    `json:"id"`
+	MbpsSendRate    flexFloat `json:"mbpsSendRate"`
+	MbpsRecvRate    flexFloat `json:"mbpsRecvRate"`
+	MsRTT           flexFloat `json:"msRTT"`
+	MsSndTsbPdDelay flexFloat `json:"msSndTsbPdDelay"`
+	MsRcvTsbPdDelay flexFloat `json:"msRcvTsbPdDelay"`
+	MsSndBuf        flexFloat `json:"msSndBuf"`
+	MsRcvBuf        flexFloat `json:"msRcvBuf"`
+	PktSent         flexInt   `json:"pktSent"`
+	PktSndLoss      flexInt   `json:"pktSndLoss"`
+	PktRetrans      flexInt   `json:"pktRetrans"`
+	PktRecvACK      flexInt   `json:"pktRecvACK"`
+	PktRecvNAK      flexInt   `json:"pktRecvNAK"`
+	PktRecvTotal    flexInt   `json:"pktRecvTotal"`
+	PktRcvLossTotal flexInt   `json:"pktRcvLossTotal"`
+	PktRcvDropTotal flexInt   `json:"pktRcvDropTotal"`
+	PktSentACK      flexInt   `json:"pktSentACK"`
+	PktSentNAK      flexInt   `json:"pktSentNAK"`
+}
+
+func (w *wireSRTConnection) send(c *collector) SRTSendStats {
+	return SRTSendStats{
+		Peer:    w.ID,
+		Bitrate: c.float("mbpsSendRate", &w.MbpsSendRate),
+		RTT:     millisDuration(c.float("msRTT", &w.MsRTT)),
+		Latency: millisDuration(c.float("msSndTsbPdDelay", &w.MsSndTsbPdDelay)),
+		Buffer:  millisDuration(c.float("msSndBuf", &w.MsSndBuf)),
+		Sent:    int64(c.int("pktSent", &w.PktSent)),
+		Lost:    int64(c.int("pktSndLoss", &w.PktSndLoss)),
+		Resent:  int64(c.int("pktRetrans", &w.PktRetrans)),
+		ACK:     int64(c.int("pktRecvACK", &w.PktRecvACK)),
+		NAK:     int64(c.int("pktRecvNAK", &w.PktRecvNAK)),
+	}
+}
+
+func (w *wireSRTConnection) receive(c *collector) SRTReceiveStats {
+	return SRTReceiveStats{
+		Peer:     w.ID,
+		Bitrate:  c.float("mbpsRecvRate", &w.MbpsRecvRate),
+		RTT:      millisDuration(c.float("msRTT", &w.MsRTT)),
+		Latency:  millisDuration(c.float("msRcvTsbPdDelay", &w.MsRcvTsbPdDelay)),
+		Buffer:   millisDuration(c.float("msRcvBuf", &w.MsRcvBuf)),
+		Received: int64(c.int("pktRecvTotal", &w.PktRecvTotal)),
+		Lost:     int64(c.int("pktRcvLossTotal", &w.PktRcvLossTotal)),
+		Dropped:  int64(c.int("pktRcvDropTotal", &w.PktRcvDropTotal)),
+		ACK:      int64(c.int("pktSentACK", &w.PktSentACK)),
+		NAK:      int64(c.int("pktSentNAK", &w.PktSentNAK)),
+	}
+}
+
+// wireSRTStats is an SRT unit in systems.stats. In listener mode srtStats
+// holds one connection per caller in "callers", in caller mode it holds the
+// connection itself.
+type wireSRTStats struct {
+	UpTime    flexInt `json:"upTime"`
+	StatsTime flexInt `json:"statsTime"`
+	SRTStats  struct {
+		wireSRTConnection
+		Mode      string                        `json:"mode"`
+		CallersNr flexInt                       `json:"callersNr"`
+		Callers   flexObject[wireSRTConnection] `json:"callers"`
+	} `json:"srtStats"`
+}
+
+// connections converts the connections of an SRT unit with conv.
+func srtConnections[T any](c *collector, s *wireSRTStats, conv func(*wireSRTConnection, *collector) T) []T {
+	out := []T{}
+	switch s.SRTStats.Mode {
+	case "":
+		// Not running.
+	case "Listener":
+		for i := range s.SRTStats.Callers {
+			w := &s.SRTStats.Callers[i]
+			cc := c.scope("srtStats.callers." + w.ID)
+			out = append(out, conv(w, cc))
+			c.merge(cc)
+		}
+	default:
+		sc := c.scope("srtStats")
+		out = append(out, conv(&s.SRTStats.wireSRTConnection, sc))
+		c.merge(sc)
+	}
+	return out
+}
+
+// systemStats is a decoded systems.stats message. The units are converted by
+// mergeStats, so every Stats value gets its own slices; the XLink units of all
 // systems are kept by ID to complete systems.localStats.
 type systemStats struct {
 	health   Health
 	peers    []PeerStats
+	srt      []srtItem
 	encoders map[UnitID]*wireEncoderMetrics
 	decoders map[UnitID]*wireDecoderMetrics
+}
+
+// srtItem is an SRT unit of the local system.
+type srtItem struct {
+	id      UnitID
+	encoder bool
+	wire    *wireSRTStats
 }
 
 // decodeSystemStats decodes a systems.stats message.
@@ -634,9 +796,9 @@ func decodeSystemStats(params json.RawMessage) (systemStats, []decodeIssue, erro
 		decoders: map[UnitID]*wireDecoderMetrics{},
 	}
 	ss.health, _, _ = findHealth(&c, w.SysID, w.Data.Local)
-	ss.addUnits(&c, w.Data.Local)
+	ss.addUnits(&c, w.Data.Local, true)
 	for _, r := range w.Data.Remote {
-		ss.addUnits(&c, r.Data)
+		ss.addUnits(&c, r.Data, false)
 		h, rtt, ok := findHealth(&c, r.SysID, r.Data)
 		if !ok {
 			continue
@@ -646,8 +808,9 @@ func decodeSystemStats(params json.RawMessage) (systemStats, []decodeIssue, erro
 	return ss, c.issues, nil
 }
 
-// addUnits adds the XLink units of one system.
-func (ss *systemStats) addUnits(c *collector, items []wireStatsItem) {
+// addUnits adds the unit items of one system. SRT units are only kept for
+// the local system.
+func (ss *systemStats) addUnits(c *collector, items []wireStatsItem, local bool) {
 	for _, item := range items {
 		if len(item.Data) == 0 {
 			continue
@@ -668,6 +831,16 @@ func (ss *systemStats) addUnits(c *collector, items []wireStatsItem) {
 				break
 			}
 			ss.decoders[UnitID(item.ID)] = &m
+		case statsTypeSRTEncoder, statsTypeSRTDecoder:
+			if !local {
+				break
+			}
+			var s wireSRTStats
+			if err := json.Unmarshal(item.Data, &s); err != nil {
+				ic.add(issueFromError("data", item.Data, err))
+				break
+			}
+			ss.srt = append(ss.srt, srtItem{id: UnitID(item.ID), encoder: item.Type == statsTypeSRTEncoder, wire: &s})
 		}
 		c.merge(ic)
 	}
@@ -704,13 +877,34 @@ func mergeStats(ls localStats, ss systemStats) (Stats, []decodeIssue) {
 		}
 	}
 	stats := Stats{
-		System:     ls.System,
-		Time:       ls.Time,
-		Health:     ss.health,
-		Interfaces: ls.Interfaces,
-		Encoders:   ls.Encoders,
-		Decoders:   ls.Decoders,
-		Peers:      slices.Clone(ss.peers),
+		System:      ls.System,
+		Time:        ls.Time,
+		Health:      ss.health,
+		Interfaces:  ls.Interfaces,
+		Encoders:    ls.Encoders,
+		Decoders:    ls.Decoders,
+		SRTEncoders: []SRTEncoderStats{},
+		SRTDecoders: []SRTDecoderStats{},
+		Peers:       slices.Clone(ss.peers),
+	}
+	for _, item := range ss.srt {
+		ic := c.scope(string(item.id))
+		s := item.wire
+		uptime := secondsDuration(ic.int("upTime", &s.UpTime))
+		statsTime := secondsDuration(ic.int("statsTime", &s.StatsTime))
+		clients := ic.int("srtStats.callersNr", &s.SRTStats.CallersNr)
+		if item.encoder {
+			stats.SRTEncoders = append(stats.SRTEncoders, SRTEncoderStats{
+				ID: item.id, Uptime: uptime, StatsTime: statsTime, Clients: clients,
+				Connections: srtConnections(ic, s, (*wireSRTConnection).send),
+			})
+		} else {
+			stats.SRTDecoders = append(stats.SRTDecoders, SRTDecoderStats{
+				ID: item.id, Uptime: uptime, StatsTime: statsTime, Clients: clients,
+				Connections: srtConnections(ic, s, (*wireSRTConnection).receive),
+			})
+		}
+		c.merge(ic)
 	}
 	return stats, c.issues
 }

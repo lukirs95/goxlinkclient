@@ -71,6 +71,7 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 | ETHs (`type 0`, `ethN`) | nur aktive: `rx`, `tx` (Mbps) | alle |
 | Encoder (`type 1`) | `running`, `upTime`, `vInFps`, `vInT`, `xLink{rtt,p2p,resent}` + `receiver{…Decoder-Stats…}` | `upTime`, `statsTime`, `vInFps`, `vInT`, `xLink` mit ARQ-Details (`xAck`, `xAckR`, `cloud`, `noAck`, `lateAck`, `dropAck`, `resentAck`, `lateAckResent`, `dropAckResent`, …), `aInCh{n:{id, dBFS_RMS, dBFS_peak}}` (Strings) |
 | Decoder (`type 2`) | `running`, `upTime`, `vOutFps`, `mbps{rx,tx}`, `xLink`, `vDstats`, `aDstats`, `vPbuffer`, `vRstats` (Playout-Buffer: `delay`, `head_min_ms`, Jitter, Loss, Health) + `sender{…}` | `upTime`, `statsTime`, `vDecFps`, `vOutFps`, `mbps`, `xLink`, `vDstats` mit `total`/`fecok`, `aDstats`, `aInCh`, `vPbuffer`, `vRstats` (Pakete: `late`, `lateLast`, `missing`, `last`, `lateDrop`, `lateDropLast`, `slowDecode`) |
+| SRT (`type 8`/`9`) | – | `upTime`, `statsTime`, `srtStats` (siehe unten) |
 | Remote-Systeme | – | System-Werte wie oben plus `rtt` (**String**, z. B. `"0.201"`), dazu alle Units des Systems |
 
 - **History:** Nach `localStats.subscribe` sendet das Gerät immer zuerst
@@ -93,7 +94,16 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   `xLink` (`resent`, `resentDrop`, `drop`). Nicht angezeigt werden u. a. `ptpSyncLocal`,
   `sysTemp`, `vTotRun`, `xLink.p2p`, `vPbuffer.buffer`, Jitter, Loss und Health aus
   `vRstats`.
-- SRT- und NDI-Units kamen in den Mitschnitten nicht vor.
+- **SRT** steht nur in `systems.stats`. Alle Werte in `srtStats` sind Strings, Zeiten in
+  ms, Bitraten in Mbps. Im Listener-Modus (`mode:"Listener"`) gibt es `callersNr` und
+  `callers{<ip>:{id, …}}`, im Caller-Modus stehen die Werte direkt in `srtStats`. Sender:
+  `mbpsSendRate`, `msRTT`, `msSndTsbPdDelay`, `msSndBuf`, `pktSent`, `pktSndLoss`,
+  `pktRetrans`, `pktRecvACK`, `pktRecvNAK`. Empfänger: `mbpsRecvRate`, `msRTT`,
+  `msRcvTsbPdDelay`, `msRcvBuf`, `pktRecvTotal`, `pktRcvLossTotal`, `pktRcvDropTotal`,
+  `pktSentACK`, `pktSentNAK`. Gestoppte Units melden `upTime`/`statsTime` 0, behalten aber
+  die letzten `srtStats`; die UI zeigt `callersNr` nur, solange die Unit läuft. `vInFps`
+  und `vOutFps` sind auch im Betrieb 0.
+- NDI-Units kamen in den Mitschnitten nicht vor.
 - Framerates können gebrochen sein (`vInFps: 24.99`), auch in `systems.localStats`.
 
 ## 2. Detail-Subscriptions (neu)

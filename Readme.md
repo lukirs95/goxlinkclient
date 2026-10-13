@@ -60,7 +60,7 @@ With `WithStats(ch)` the client delivers a `Stats` value about every two
 seconds. It contains the values the web UI shows. Unit and interface
 statistics come from `systems.localStats`, completed with the values only
 `systems.stats` reports: the ARQ details and audio levels of encoders, the
-frame and packet counts of decoders, the counterparts' uptimes, and
+frame and packet counts of decoders, the counterparts' uptimes, SRT units, and
 the health of the local and remote systems (CPU, temperature, PTP, licenses).
 
 ```go
