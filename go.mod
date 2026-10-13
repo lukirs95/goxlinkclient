@@ -1,4 +1,4 @@
-module github.com/lukirs95/goxlinkclient/v4
+module github.com/lukirs95/goxlinkclient/v5
 
 go 1.24.0
 

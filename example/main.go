@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	xlinkclient "github.com/lukirs95/goxlinkclient/v4"
+	xlinkclient "github.com/lukirs95/goxlinkclient/v5"
 )
 
 func main() {

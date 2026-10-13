@@ -9,7 +9,7 @@ Its state messages still decode, but unit statistics require
 `localStats.subscribe`, which is only verified on 1.8.
 
 ```sh
-go get github.com/lukirs95/goxlinkclient/v4
+go get github.com/lukirs95/goxlinkclient/v5
 ```
 
 ## Reading state
