@@ -48,8 +48,11 @@ func (i decodeIssue) String() string {
 // unquote returns the trimmed content of a JSON string. ok is false if data is
 // not a JSON string.
 func unquote(data []byte) (s string, ok bool) {
-	if len(data) == 0 || data[0] != '"' {
+	if len(data) < 2 || data[0] != '"' || data[len(data)-1] != '"' {
 		return "", false
+	}
+	if inner := data[1 : len(data)-1]; bytes.IndexByte(inner, '\\') < 0 {
+		return strings.TrimSpace(string(inner)), true
 	}
 	if err := json.Unmarshal(data, &s); err != nil {
 		return "", false

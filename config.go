@@ -540,66 +540,66 @@ func (cs configs) get(id UnitID) (*wireConfigValues, bool) {
 
 func (cs configs) attachEncoder(c *collector, e *Encoder) {
 	if v, ok := cs.get(e.ID); ok {
-		cc := c.scope("config")
-		cfg := v.encoder(cc)
-		c.merge(cc)
+		c.push("config")
+		cfg := v.encoder(c)
+		c.pop()
 		e.Config = &cfg
 	}
 	if v, ok := cs.get(e.Receiver.ID); ok && e.Receiver.ID != "" {
-		cc := c.scope("receiver.config")
-		cfg := v.decoder(cc)
-		c.merge(cc)
+		c.push("receiver.config")
+		cfg := v.decoder(c)
+		c.pop()
 		e.Receiver.Config = &cfg
 	}
 }
 
 func (cs configs) attachDecoder(c *collector, d *Decoder) {
 	if v, ok := cs.get(d.ID); ok {
-		cc := c.scope("config")
-		cfg := v.decoder(cc)
-		c.merge(cc)
+		c.push("config")
+		cfg := v.decoder(c)
+		c.pop()
 		d.Config = &cfg
 	}
 	if v, ok := cs.get(d.Sender.ID); ok && d.Sender.ID != "" {
-		cc := c.scope("sender.config")
-		cfg := v.encoder(cc)
-		c.merge(cc)
+		c.push("sender.config")
+		cfg := v.encoder(c)
+		c.pop()
 		d.Sender.Config = &cfg
 	}
 }
 
 func (cs configs) attachSRTEncoder(c *collector, e *SRTEncoder) {
 	if v, ok := cs.get(e.ID); ok {
-		cc := c.scope("config")
-		cfg := v.srtEncoder(cc)
-		c.merge(cc)
+		c.push("config")
+		cfg := v.srtEncoder(c)
+		c.pop()
 		e.Config = &cfg
 	}
 }
 
 func (cs configs) attachSRTDecoder(c *collector, d *SRTDecoder) {
 	if v, ok := cs.get(d.ID); ok {
-		cc := c.scope("config")
-		cfg := v.srtDecoder(cc)
-		c.merge(cc)
+		c.push("config")
+		cfg := v.srtDecoder(c)
+		c.pop()
 		d.Config = &cfg
 	}
 }
 
 func (cs configs) attachNDIEncoder(c *collector, e *NDIEncoder) {
 	if v, ok := cs.get(e.ID); ok {
-		cc := c.scope("config")
-		cfg := v.ndiEncoder(cc)
-		c.merge(cc)
+		c.push("config")
+		cfg := v.ndiEncoder(c)
+		c.pop()
 		e.Config = &cfg
 	}
 }
 
 func (cs configs) attachNDIDecoder(c *collector, d *NDIDecoder) {
 	if v, ok := cs.get(d.ID); ok {
-		cc := c.scope("config")
-		cfg := v.ndiDecoder(cc)
-		c.merge(cc)
+		c.push("config")
+		cfg := v.ndiDecoder(c)
+		c.pop()
 		d.Config = &cfg
 	}
 }

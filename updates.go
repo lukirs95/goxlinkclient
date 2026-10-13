@@ -218,8 +218,8 @@ func (w *watcher[T, P]) observe(key string, existing P, deleted bool) {
 // updates appends an update for every touched element that was added,
 // changed or removed, and resets the watcher.
 func (w *watcher[T, P]) updates(c *collector, out []Update) []Update {
-	lc := c.scope(w.name)
-	lc.add(w.list.takeIssues()...)
+	c.push(w.name)
+	c.add(w.list.takeIssues()...)
 	for _, t := range w.touched {
 		if t.deleted {
 			if k := w.kind(t.key); t.existed && k != 0 {
@@ -231,16 +231,16 @@ func (w *watcher[T, P]) updates(c *collector, out []Update) []Update {
 		if e == nil {
 			continue
 		}
-		ec := lc.scope(t.key)
-		after := w.convert(e, ec)
-		lc.merge(ec)
+		c.push(t.key)
+		after := w.convert(e, c)
+		c.pop()
 		if after.Kind == 0 || t.existed && after.sameElement(&t.before) {
 			continue
 		}
 		out = append(out, after)
 	}
 	w.touched = w.touched[:0]
-	c.merge(lc)
+	c.pop()
 	return out
 }
 

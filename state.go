@@ -87,30 +87,35 @@ func (s *state) applyUpdate(c *collector, params json.RawMessage) (updates []Upd
 }
 
 // peekDataID returns the dataid of a systems.update message without decoding
-// the rest. The device sends it before the data.
+// the rest. The device sends it before the data; otherwise the head of the
+// message is decoded.
 func peekDataID(params json.RawMessage) (int, error) {
-	dec := json.NewDecoder(bytes.NewReader(params))
-	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
-		return 0, fmt.Errorf("xlinkclient: decode system message: not an object")
-	}
-	for dec.More() {
-		key, err := dec.Token()
-		if err != nil {
-			return 0, fmt.Errorf("xlinkclient: decode system message: %w", err)
-		}
-		if key == "dataid" {
-			var id flexInt
-			if err := dec.Decode(&id); err != nil {
-				return 0, fmt.Errorf("xlinkclient: decode system message: %w", err)
-			}
-			return id.Value, nil
-		}
-		var skip json.RawMessage
-		if err := dec.Decode(&skip); err != nil {
-			return 0, fmt.Errorf("xlinkclient: decode system message: %w", err)
+	if before, after, found := bytes.Cut(params, []byte(`"dataid"`)); found && !bytes.Contains(before, []byte(`"data":`)) {
+		if id, ok := parseDataID(after); ok {
+			return id, nil
 		}
 	}
-	return 0, nil
+	var head struct {
+		DataID flexInt `json:"dataid"`
+	}
+	if err := json.Unmarshal(params, &head); err != nil {
+		return 0, fmt.Errorf("xlinkclient: decode system message: %w", err)
+	}
+	return head.DataID.Value, nil
+}
+
+// parseDataID parses `: 123` or `: "123"` at the start of b.
+func parseDataID(b []byte) (int, bool) {
+	b = bytes.TrimLeft(b, " \t\r\n")
+	if len(b) == 0 || b[0] != ':' {
+		return 0, false
+	}
+	b = bytes.TrimLeft(b[1:], " \t\r\n\"")
+	n, digits := 0, 0
+	for ; digits < len(b) && b[digits] >= '0' && b[digits] <= '9'; digits++ {
+		n = n*10 + int(b[digits]-'0')
+	}
+	return n, digits > 0 && digits < 19
 }
 
 // applyUnitSubscribe applies a state.subscribe response and returns the
@@ -281,7 +286,7 @@ func (s *state) attachConfigs(c *collector, sys *System) {
 
 // attachScoped attaches the configuration of unit id, scoping issues by id.
 func attachScoped[U any](c *collector, id string, u *U, attach func(*collector, *U)) {
-	uc := c.scope(id)
-	attach(uc, u)
-	c.merge(uc)
+	c.push(id)
+	attach(c, u)
+	c.pop()
 }

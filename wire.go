@@ -112,35 +112,36 @@ type wireEncoderValues struct {
 
 func (e *wireEncoder) toEncoder(c *collector) Encoder {
 	v := &e.Values
-	vc := c.scope("values")
-	video, audio := v.streams(vc)
+	enabled := c.bool("enabled", &e.Enabled)
+	c.push("values")
+	video, audio := v.streams(c)
 	enc := Encoder{
 		ID:                 UnitID(e.ID),
 		Name:               e.Name,
-		Enabled:            c.bool("enabled", &e.Enabled),
-		Running:            vc.bool("running", &v.Running),
-		Card:               VideoCard(vc.int("vCard", &v.VCard)),
+		Enabled:            enabled,
+		Running:            c.bool("running", &v.Running),
+		Card:               VideoCard(c.int("vCard", &v.VCard)),
 		Connector:          v.VCardConn,
 		VideoIn:            Signal(v.VIn),
 		AudioIn:            Signal(v.AIn),
-		HDR:                HDRMode(vc.int("vHDR", &v.VHDR)),
+		HDR:                HDRMode(c.int("vHDR", &v.VHDR)),
 		NDISource:          v.NDISource,
 		NDISourceName:      v.NDISourceName,
-		NDISourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
+		NDISourceConnected: c.bool("ndiSourceCon", &v.NDISourceCon),
 		MultiPointSource:   v.multiPointSource(),
-		Codec:              VideoCodec(vc.int("vCodec", &v.VCodec)),
-		CRF:                vc.bool("vCRFOn", &v.VCRFOn),
-		Bitrate:            vc.int("vTBR", &v.VTBR),
-		FECLevel:           vc.int("vFEC", &v.VFEC),
+		Codec:              VideoCodec(c.int("vCodec", &v.VCodec)),
+		CRF:                c.bool("vCRFOn", &v.VCRFOn),
+		Bitrate:            c.int("vTBR", &v.VTBR),
+		FECLevel:           c.int("vFEC", &v.VFEC),
 		Video2110:          video,
 		Audio2110:          audio,
-		XLink:              vc.bool("xLink", &v.XLink),
-		P2P:                vc.bool("xLinkp2p", &v.XLinkP2P),
+		XLink:              c.bool("xLink", &v.XLink),
+		P2P:                c.bool("xLinkp2p", &v.XLinkP2P),
 	}
-	c.merge(vc)
-	rc := c.scope("receiver")
-	enc.Receiver = e.Receiver.toReceiver(rc)
-	c.merge(rc)
+	c.pop()
+	c.push("receiver")
+	enc.Receiver = e.Receiver.toReceiver(c)
+	c.pop()
 	return enc
 }
 
@@ -176,35 +177,36 @@ type wireDecoderValues struct {
 
 func (d *wireDecoder) toDecoder(c *collector) Decoder {
 	v := &d.Values
-	vc := c.scope("values")
-	video, audio := v.streams(vc)
+	enabled := c.bool("enabled", &d.Enabled)
+	c.push("values")
+	video, audio := v.streams(c)
 	dec := Decoder{
 		ID:             UnitID(d.ID),
 		Name:           d.Name,
-		Enabled:        c.bool("enabled", &d.Enabled),
-		Running:        vc.bool("running", &v.Running),
-		Card:           VideoCard(vc.int("vCard", &v.VCard)),
+		Enabled:        enabled,
+		Running:        c.bool("running", &v.Running),
+		Card:           VideoCard(c.int("vCard", &v.VCard)),
 		Connector:      v.VCardConn,
 		VideoIn:        Signal(v.VIn),
 		AudioIn:        Signal(v.AIn),
 		VideoOut:       Signal(v.VOut),
 		AudioOut:       Signal(v.AOut),
-		HDR:            HDRMode(vc.int("vHDR", &v.VHDR)),
-		RefLocked:      vc.bool("vRef", &v.VRef),
-		AVSync:         vc.bool("avSync", &v.AVSync),
-		AVDelay:        time.Duration(vc.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
-		SignalGenOn:    vc.bool("vBnoInOn", &v.VBnoInOn),
-		SignalGenDelay: time.Duration(vc.int("vBnoIn", &v.VBnoIn)) * time.Second,
-		FPSSync:        vc.bool("vFRCOn", &v.VFRCOn),
+		HDR:            HDRMode(c.int("vHDR", &v.VHDR)),
+		RefLocked:      c.bool("vRef", &v.VRef),
+		AVSync:         c.bool("avSync", &v.AVSync),
+		AVDelay:        time.Duration(c.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
+		SignalGenOn:    c.bool("vBnoInOn", &v.VBnoInOn),
+		SignalGenDelay: time.Duration(c.int("vBnoIn", &v.VBnoIn)) * time.Second,
+		FPSSync:        c.bool("vFRCOn", &v.VFRCOn),
 		Video2110:      video,
 		Audio2110:      audio,
-		XLink:          vc.bool("xLink", &v.XLink),
-		P2P:            vc.bool("xLinkp2p", &v.XLinkP2P),
+		XLink:          c.bool("xLink", &v.XLink),
+		P2P:            c.bool("xLinkp2p", &v.XLinkP2P),
 	}
-	c.merge(vc)
-	sc := c.scope("sender")
-	dec.Sender = d.Sender.toSender(sc)
-	c.merge(sc)
+	c.pop()
+	c.push("sender")
+	dec.Sender = d.Sender.toSender(c)
+	c.pop()
 	return dec
 }
 
@@ -258,80 +260,84 @@ func (u *wireMediaUnit) srtConnection(c *collector) SRTConnection {
 
 func (u *wireMediaUnit) toSRTEncoder(c *collector) SRTEncoder {
 	v := &u.Values
-	vc := c.scope("values")
+	enabled := c.bool("enabled", &u.Enabled)
+	c.push("values")
 	enc := SRTEncoder{
 		ID:        UnitID(u.ID),
 		Name:      u.Name,
-		Enabled:   c.bool("enabled", &u.Enabled),
-		Running:   vc.bool("running", &v.Running),
+		Enabled:   enabled,
+		Running:   c.bool("running", &v.Running),
 		Error:     u.RunError,
-		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Card:      VideoCard(c.int("vCard", &v.VCard)),
 		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
-		Bitrate:   vc.int("vTBR", &v.VTBR),
-		SRT:       u.srtConnection(vc),
+		Bitrate:   c.int("vTBR", &v.VTBR),
+		SRT:       u.srtConnection(c),
 	}
-	c.merge(vc)
+	c.pop()
 	return enc
 }
 
 func (u *wireMediaUnit) toSRTDecoder(c *collector) SRTDecoder {
 	v := &u.Values
-	vc := c.scope("values")
+	enabled := c.bool("enabled", &u.Enabled)
+	c.push("values")
 	dec := SRTDecoder{
 		ID:        UnitID(u.ID),
 		Name:      u.Name,
-		Enabled:   c.bool("enabled", &u.Enabled),
-		Running:   vc.bool("running", &v.Running),
+		Enabled:   enabled,
+		Running:   c.bool("running", &v.Running),
 		Error:     u.RunError,
-		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Card:      VideoCard(c.int("vCard", &v.VCard)),
 		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
 		VideoOut:  Signal(v.VOut),
-		SRT:       u.srtConnection(vc),
+		SRT:       u.srtConnection(c),
 	}
-	c.merge(vc)
+	c.pop()
 	return dec
 }
 
 func (u *wireMediaUnit) toNDIEncoder(c *collector) NDIEncoder {
 	v := &u.Values
-	vc := c.scope("values")
+	enabled := c.bool("enabled", &u.Enabled)
+	c.push("values")
 	enc := NDIEncoder{
 		ID:        UnitID(u.ID),
 		Name:      u.Name,
-		Enabled:   c.bool("enabled", &u.Enabled),
-		Running:   vc.bool("running", &v.Running),
-		Card:      VideoCard(vc.int("vCard", &v.VCard)),
+		Enabled:   enabled,
+		Running:   c.bool("running", &v.Running),
+		Card:      VideoCard(c.int("vCard", &v.VCard)),
 		Connector: v.VCardConn,
 		VideoIn:   Signal(v.VIn),
 		VideoOut:  Signal(v.VOut),
 	}
-	c.merge(vc)
+	c.pop()
 	return enc
 }
 
 func (u *wireMediaUnit) toNDIDecoder(c *collector) NDIDecoder {
 	v := &u.Values
-	vc := c.scope("values")
+	enabled := c.bool("enabled", &u.Enabled)
+	c.push("values")
 	dec := NDIDecoder{
 		ID:              UnitID(u.ID),
 		Name:            u.Name,
-		Enabled:         c.bool("enabled", &u.Enabled),
-		Running:         vc.bool("running", &v.Running),
-		Card:            VideoCard(vc.int("vCard", &v.VCard)),
+		Enabled:         enabled,
+		Running:         c.bool("running", &v.Running),
+		Card:            VideoCard(c.int("vCard", &v.VCard)),
 		Connector:       v.VCardConn,
 		VideoIn:         Signal(v.VIn),
 		VideoOut:        Signal(v.VOut),
 		Source:          v.NDISource,
 		SourceName:      v.NDISourceName,
-		SourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
-		RefLocked:       vc.bool("vRef", &v.VRef),
-		AVSync:          vc.bool("avSync", &v.AVSync),
-		AVDelay:         time.Duration(vc.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
-		FPSSync:         vc.bool("vFRCOn", &v.VFRCOn),
+		SourceConnected: c.bool("ndiSourceCon", &v.NDISourceCon),
+		RefLocked:       c.bool("vRef", &v.VRef),
+		AVSync:          c.bool("avSync", &v.AVSync),
+		AVDelay:         time.Duration(c.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
+		FPSSync:         c.bool("vFRCOn", &v.VFRCOn),
 	}
-	c.merge(vc)
+	c.pop()
 	return dec
 }
 
@@ -403,32 +409,32 @@ func (l *wireLinked) toLinked(c *collector) LinkedUnit {
 
 func (l *wireLinked) toReceiver(c *collector) LinkedReceiver {
 	v := &l.Values
-	vc := c.scope("values")
+	c.push("values")
 	r := LinkedReceiver{
-		LinkedUnit: l.toLinked(vc),
+		LinkedUnit: l.toLinked(c),
 		VideoOut:   Signal(v.VOut),
 		AudioOut:   Signal(v.AOut),
-		RefLocked:  vc.bool("vRef", &v.VRef),
-		AVSync:     vc.bool("avSync", &v.AVSync),
-		AVDelay:    time.Duration(vc.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
+		RefLocked:  c.bool("vRef", &v.VRef),
+		AVSync:     c.bool("avSync", &v.AVSync),
+		AVDelay:    time.Duration(c.int("avUnSync", &v.AVUnSync)) * time.Millisecond,
 	}
-	c.merge(vc)
+	c.pop()
 	return r
 }
 
 func (l *wireLinked) toSender(c *collector) LinkedSender {
 	v := &l.Values
-	vc := c.scope("values")
+	c.push("values")
 	s := LinkedSender{
-		LinkedUnit:         l.toLinked(vc),
+		LinkedUnit:         l.toLinked(c),
 		NDISource:          v.NDISource,
-		NDISourceConnected: vc.bool("ndiSourceCon", &v.NDISourceCon),
+		NDISourceConnected: c.bool("ndiSourceCon", &v.NDISourceCon),
 		MultiPointSource:   v.multiPointSource(),
-		Codec:              VideoCodec(vc.int("vCodec", &v.VCodec)),
-		CRF:                vc.bool("vCRFOn", &v.VCRFOn),
-		Bitrate:            vc.int("vTBR", &v.VTBR),
+		Codec:              VideoCodec(c.int("vCodec", &v.VCodec)),
+		CRF:                c.bool("vCRFOn", &v.VCRFOn),
+		Bitrate:            c.int("vTBR", &v.VTBR),
 	}
-	c.merge(vc)
+	c.pop()
 	return s
 }
 
@@ -515,23 +521,24 @@ type wireTrunkValues struct {
 
 func (t *wireTrunk) toTrunk(c *collector) Trunk {
 	v := &t.Values
-	vc := c.scope("values")
+	running := c.bool("running", &t.Running)
+	c.push("values")
 	trunk := Trunk{
 		ID:                TrunkID(t.ID),
 		Name:              t.Name,
-		Running:           c.bool("running", &t.Running),
+		Running:           running,
 		Interface:         iface(v.Eth),
-		Master:            vc.bool("master", &v.Master),
-		AutoStart:         vc.bool("autoStart", &v.AutoStart),
-		Multicast:         vc.bool("multicast", &v.Multicast),
-		ReliableMulticast: vc.bool("rmcast", &v.RMcast),
-		Encryption:        vc.bool("encryption", &v.Encryption),
+		Master:            c.bool("master", &v.Master),
+		AutoStart:         c.bool("autoStart", &v.AutoStart),
+		Multicast:         c.bool("multicast", &v.Multicast),
+		ReliableMulticast: c.bool("rmcast", &v.RMcast),
+		Encryption:        c.bool("encryption", &v.Encryption),
 	}
-	mtu := vc.int("l2mtu", &v.L2MTU)
-	if vc.bool("l2mtuOn", &v.L2MTUOn) {
+	mtu := c.int("l2mtu", &v.L2MTU)
+	if c.bool("l2mtuOn", &v.L2MTUOn) {
 		trunk.MTU = mtu
 	}
-	c.merge(vc)
+	c.pop()
 	return trunk
 }
 
@@ -630,18 +637,18 @@ func convertList[T any, P keyedElement[T], R any](c *collector, name string, l *
 // convertWhere converts the elements of a keyed list that match, or all
 // elements if match is nil. List level issues are reported by the first call.
 func convertWhere[T any, P keyedElement[T], R any](c *collector, name string, l *keyedList[T, P], match func(P) bool, convert func(P, *collector) R) []R {
-	lc := c.scope(name)
-	lc.add(l.takeIssues()...)
+	c.push(name)
+	c.add(l.takeIssues()...)
 	out := make([]R, 0, len(l.items))
 	for _, item := range l.items {
 		if match != nil && !match(P(item)) {
 			continue
 		}
-		ec := lc.scope(P(item).key())
-		out = append(out, convert(item, ec))
-		lc.merge(ec)
+		c.push(P(item).key())
+		out = append(out, convert(item, c))
+		c.pop()
 	}
-	c.merge(lc)
+	c.pop()
 	return out
 }
 

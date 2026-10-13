@@ -381,20 +381,20 @@ func (m *wireEncoderMetrics) local(c *collector, id string) EncoderMetrics {
 	if m.ID != "" {
 		id = m.ID
 	}
-	x := &m.XLink
-	xc := c.scope("xLink")
 	e := EncoderMetrics{
 		ID:       unitID(id),
 		Running:  c.bool("running", &m.Running),
 		Uptime:   secondsDuration(c.int("upTime", &m.UpTime)),
 		InputFPS: c.float("vInFps", &m.VInFps),
 		TTF:      time.Duration(c.int("vInT", &m.VInT)) * time.Millisecond,
-		XLink: EncoderXLinkStats{
-			RTT:    millisDuration(xc.float("rtt", &x.RTT)),
-			Resent: int64(xc.int("resent", &x.Resent)),
-		},
 	}
-	c.merge(xc)
+	x := &m.XLink
+	c.push("xLink")
+	e.XLink = EncoderXLinkStats{
+		RTT:    millisDuration(c.float("rtt", &x.RTT)),
+		Resent: int64(c.int("resent", &x.Resent)),
+	}
+	c.pop()
 	return e
 }
 
@@ -407,32 +407,32 @@ func (m *wireEncoderMetrics) complete(c *collector, e *EncoderMetrics, counterpa
 	e.StatsTime = secondsDuration(c.int("statsTime", &m.StatsTime))
 
 	x := &m.XLink
-	xc := c.scope("xLink")
-	ack := xc.bool("xAck", &x.XAck)
-	resend := xc.bool("xAckR", &x.XAckR)
+	c.push("xLink")
+	ack := c.bool("xAck", &x.XAck)
+	resend := c.bool("xAckR", &x.XAckR)
 	e.XLink.ACK = ack
 	e.XLink.Resend = ack && resend
-	e.XLink.Cloud = int64(xc.int("cloud", &x.Cloud))
-	e.XLink.NoACK = int64(xc.int("noAck", &x.NoAck))
-	e.XLink.LateACK = int64(xc.int("lateAck", &x.LateAck))
-	e.XLink.DroppedACK = int64(xc.int("dropAck", &x.DropAck))
-	e.XLink.ResentACK = int64(xc.int("resentAck", &x.ResentAck))
-	e.XLink.ResentLateACK = int64(xc.int("lateAckResent", &x.LateAckResent))
-	e.XLink.ResentDroppedACK = int64(xc.int("dropAckResent", &x.DropAckResent))
-	c.merge(xc)
+	e.XLink.Cloud = int64(c.int("cloud", &x.Cloud))
+	e.XLink.NoACK = int64(c.int("noAck", &x.NoAck))
+	e.XLink.LateACK = int64(c.int("lateAck", &x.LateAck))
+	e.XLink.DroppedACK = int64(c.int("dropAck", &x.DropAck))
+	e.XLink.ResentACK = int64(c.int("resentAck", &x.ResentAck))
+	e.XLink.ResentLateACK = int64(c.int("lateAckResent", &x.LateAckResent))
+	e.XLink.ResentDroppedACK = int64(c.int("dropAckResent", &x.DropAckResent))
+	c.pop()
 
-	ac := c.scope("aInCh")
+	c.push("aInCh")
 	e.Audio = make([]AudioLevel, 0, len(m.AInCh))
 	for i := range m.AInCh {
 		l := &m.AInCh[i]
 		e.Audio = append(e.Audio, AudioLevel{
-			Channel: ac.int("id", &l.ID),
-			Level:   ac.float("dBFS_RMS", &l.RMS),
-			Peak:    ac.float("dBFS_peak", &l.Peak),
+			Channel: c.int("id", &l.ID),
+			Level:   c.float("dBFS_RMS", &l.RMS),
+			Peak:    c.float("dBFS_peak", &l.Peak),
 		})
 	}
 	slices.SortFunc(e.Audio, func(a, b AudioLevel) int { return a.Channel - b.Channel })
-	c.merge(ac)
+	c.pop()
 }
 
 type wireEncoderStats struct {
@@ -491,21 +491,21 @@ func (m *wireDecoderMetrics) local(c *collector, id string) DecoderMetrics {
 	if m.ID != "" {
 		id = m.ID
 	}
-	x := &m.XLink
-	xc := c.scope("xLink")
 	d := DecoderMetrics{
 		ID:        unitID(id),
 		Running:   c.bool("running", &m.Running),
 		Uptime:    secondsDuration(c.int("upTime", &m.UpTime)),
 		OutputFPS: c.float("vOutFps", &m.VOutFps),
 		RX:        c.float("mbps.rx", &m.Mbps.RX),
-		XLink: DecoderXLinkStats{
-			Resent:     int64(xc.int("resent", &x.Resent)),
-			ResentDrop: int64(xc.int("resentDrop", &x.ResentDrop)),
-			Drop:       int64(xc.int("drop", &x.Drop)),
-		},
 	}
-	c.merge(xc)
+	x := &m.XLink
+	c.push("xLink")
+	d.XLink = DecoderXLinkStats{
+		Resent:     int64(c.int("resent", &x.Resent)),
+		ResentDrop: int64(c.int("resentDrop", &x.ResentDrop)),
+		Drop:       int64(c.int("drop", &x.Drop)),
+	}
+	c.pop()
 
 	v := &m.VDstats
 	d.Video = VideoStats{
@@ -581,7 +581,7 @@ func decodeLocalStats(params json.RawMessage) (localStats, []decodeIssue, error)
 		return localStats{}, nil, fmt.Errorf("%w: %w", errBadStats, err)
 	}
 
-	var c collector
+	c := &collector{}
 	ls := localStats{
 		System:     SystemID(w.SysID),
 		Time:       c.time("time", &w.Time),
@@ -593,45 +593,43 @@ func decodeLocalStats(params json.RawMessage) (localStats, []decodeIssue, error)
 		if len(item.Data) == 0 {
 			continue
 		}
-		ic := c.scope(item.ID)
+		c.push(item.ID)
 		switch {
 		case item.Type == statsTypeSystem && strings.HasPrefix(item.ID, "eth"):
 			var s wireInterfaceStats
 			if err := json.Unmarshal(item.Data, &s); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
 			ls.Interfaces = append(ls.Interfaces, InterfaceStats{
 				ID: item.ID,
-				RX: ic.float("rx", &s.RX),
-				TX: ic.float("tx", &s.TX),
+				RX: c.float("rx", &s.RX),
+				TX: c.float("tx", &s.TX),
 			})
 		case item.Type == statsTypeEncoder:
 			var s wireEncoderStats
 			if err := json.Unmarshal(item.Data, &s); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
-			rc := ic.scope("receiver")
-			ls.Encoders = append(ls.Encoders, EncoderStats{
-				EncoderMetrics: s.wireEncoderMetrics.local(ic, item.ID),
-				Receiver:       s.Receiver.local(rc, ""),
-			})
-			ic.merge(rc)
+			enc := EncoderStats{EncoderMetrics: s.wireEncoderMetrics.local(c, item.ID)}
+			c.push("receiver")
+			enc.Receiver = s.Receiver.local(c, "")
+			c.pop()
+			ls.Encoders = append(ls.Encoders, enc)
 		case item.Type == statsTypeDecoder:
 			var s wireDecoderStats
 			if err := json.Unmarshal(item.Data, &s); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
-			sc := ic.scope("sender")
-			ls.Decoders = append(ls.Decoders, DecoderStats{
-				DecoderMetrics: s.wireDecoderMetrics.local(ic, item.ID),
-				Sender:         s.Sender.local(sc, ""),
-			})
-			ic.merge(sc)
+			dec := DecoderStats{DecoderMetrics: s.wireDecoderMetrics.local(c, item.ID)}
+			c.push("sender")
+			dec.Sender = s.Sender.local(c, "")
+			c.pop()
+			ls.Decoders = append(ls.Decoders, dec)
 		}
-		c.merge(ic)
+		c.pop()
 	}
 	return ls, c.issues, nil
 }
@@ -689,9 +687,9 @@ func findHealth(c *collector, id string, items []wireStatsItem) (Health, float64
 			c.add(issueFromError(id, item.Data, err))
 			return Health{}, 0, false
 		}
-		hc := c.scope(id)
-		health, rtt := h.convert(hc), hc.float("rtt", &h.RTT)
-		c.merge(hc)
+		c.push(id)
+		health, rtt := h.convert(c), c.float("rtt", &h.RTT)
+		c.pop()
 		return health, rtt, true
 	}
 	return Health{}, 0, false
@@ -772,14 +770,14 @@ func srtConnections[T any](c *collector, s *wireSRTStats, conv func(*wireSRTConn
 	case "Listener":
 		for i := range s.SRTStats.Callers {
 			w := &s.SRTStats.Callers[i]
-			cc := c.scope("srtStats.callers." + w.ID)
-			out = append(out, conv(w, cc))
-			c.merge(cc)
+			c.push("srtStats.callers." + w.ID)
+			out = append(out, conv(w, c))
+			c.pop()
 		}
 	default:
-		sc := c.scope("srtStats")
-		out = append(out, conv(&s.SRTStats.wireSRTConnection, sc))
-		c.merge(sc)
+		c.push("srtStats")
+		out = append(out, conv(&s.SRTStats.wireSRTConnection, c))
+		c.pop()
 	}
 	return out
 }
@@ -825,17 +823,17 @@ func decodeSystemStats(params json.RawMessage) (systemStats, []decodeIssue, erro
 		return systemStats{}, nil, fmt.Errorf("%w: %w", errBadStats, err)
 	}
 
-	var c collector
+	c := &collector{}
 	ss := systemStats{
 		peers:    make([]PeerStats, 0, len(w.Data.Remote)),
 		encoders: map[UnitID]*wireEncoderMetrics{},
 		decoders: map[UnitID]*wireDecoderMetrics{},
 	}
-	ss.health, _, _ = findHealth(&c, w.SysID, w.Data.Local)
-	ss.addUnits(&c, w.Data.Local, true)
+	ss.health, _, _ = findHealth(c, w.SysID, w.Data.Local)
+	ss.addUnits(c, w.Data.Local, true)
 	for _, r := range w.Data.Remote {
-		ss.addUnits(&c, r.Data, false)
-		h, rtt, ok := findHealth(&c, r.SysID, r.Data)
+		ss.addUnits(c, r.Data, false)
+		h, rtt, ok := findHealth(c, r.SysID, r.Data)
 		if !ok {
 			continue
 		}
@@ -851,19 +849,19 @@ func (ss *systemStats) addUnits(c *collector, items []wireStatsItem, local bool)
 		if len(item.Data) == 0 {
 			continue
 		}
-		ic := c.scope(item.ID)
+		c.push(item.ID)
 		switch item.Type {
 		case statsTypeEncoder:
 			var m wireEncoderMetrics
 			if err := json.Unmarshal(item.Data, &m); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
 			ss.encoders[UnitID(item.ID)] = &m
 		case statsTypeDecoder:
 			var m wireDecoderMetrics
 			if err := json.Unmarshal(item.Data, &m); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
 			ss.decoders[UnitID(item.ID)] = &m
@@ -873,7 +871,7 @@ func (ss *systemStats) addUnits(c *collector, items []wireStatsItem, local bool)
 			}
 			var s wireSRTStats
 			if err := json.Unmarshal(item.Data, &s); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
 			ss.srt = append(ss.srt, srtItem{id: UnitID(item.ID), encoder: item.Type == statsTypeSRTEncoder, wire: &s})
@@ -883,43 +881,43 @@ func (ss *systemStats) addUnits(c *collector, items []wireStatsItem, local bool)
 			}
 			var s wireNDIStats
 			if err := json.Unmarshal(item.Data, &s); err != nil {
-				ic.add(issueFromError("data", item.Data, err))
+				c.add(issueFromError("data", item.Data, err))
 				break
 			}
 			ss.ndi = append(ss.ndi, ndiItem{id: UnitID(item.ID), encoder: item.Type == statsTypeNDIEncoder, wire: &s})
 		}
-		c.merge(ic)
+		c.pop()
 	}
 }
 
 // mergeStats completes the local statistics with the values only systems.stats
 // reports. Units missing from systems.stats keep these values zero.
 func mergeStats(ls localStats, ss systemStats) (Stats, []decodeIssue) {
-	var c collector
+	c := &collector{}
 	for i := range ls.Encoders {
 		e := &ls.Encoders[i]
 		if m := ss.encoders[e.ID]; m != nil {
-			ec := c.scope(string(e.ID))
-			m.complete(ec, &e.EncoderMetrics, false)
-			c.merge(ec)
+			c.push(string(e.ID))
+			m.complete(c, &e.EncoderMetrics, false)
+			c.pop()
 		}
 		if m := ss.decoders[e.Receiver.ID]; m != nil && e.Receiver.ID != "" {
-			rc := c.scope(string(e.Receiver.ID))
-			m.complete(rc, &e.Receiver, true)
-			c.merge(rc)
+			c.push(string(e.Receiver.ID))
+			m.complete(c, &e.Receiver, true)
+			c.pop()
 		}
 	}
 	for i := range ls.Decoders {
 		d := &ls.Decoders[i]
 		if m := ss.decoders[d.ID]; m != nil {
-			dc := c.scope(string(d.ID))
-			m.complete(dc, &d.DecoderMetrics, false)
-			c.merge(dc)
+			c.push(string(d.ID))
+			m.complete(c, &d.DecoderMetrics, false)
+			c.pop()
 		}
 		if m := ss.encoders[d.Sender.ID]; m != nil && d.Sender.ID != "" {
-			sc := c.scope(string(d.Sender.ID))
-			m.complete(sc, &d.Sender, true)
-			c.merge(sc)
+			c.push(string(d.Sender.ID))
+			m.complete(c, &d.Sender, true)
+			c.pop()
 		}
 	}
 	stats := Stats{
@@ -936,40 +934,40 @@ func mergeStats(ls localStats, ss systemStats) (Stats, []decodeIssue) {
 		Peers:       slices.Clone(ss.peers),
 	}
 	for _, item := range ss.srt {
-		ic := c.scope(string(item.id))
+		c.push(string(item.id))
 		s := item.wire
-		uptime := secondsDuration(ic.int("upTime", &s.UpTime))
-		statsTime := secondsDuration(ic.int("statsTime", &s.StatsTime))
-		clients := ic.int("srtStats.callersNr", &s.SRTStats.CallersNr)
+		uptime := secondsDuration(c.int("upTime", &s.UpTime))
+		statsTime := secondsDuration(c.int("statsTime", &s.StatsTime))
+		clients := c.int("srtStats.callersNr", &s.SRTStats.CallersNr)
 		if item.encoder {
 			stats.SRTEncoders = append(stats.SRTEncoders, SRTEncoderStats{
 				ID: item.id, Uptime: uptime, StatsTime: statsTime, Clients: clients,
-				Connections: srtConnections(ic, s, (*wireSRTConnection).send),
+				Connections: srtConnections(c, s, (*wireSRTConnection).send),
 			})
 		} else {
 			stats.SRTDecoders = append(stats.SRTDecoders, SRTDecoderStats{
 				ID: item.id, Uptime: uptime, StatsTime: statsTime, Clients: clients,
-				Connections: srtConnections(ic, s, (*wireSRTConnection).receive),
+				Connections: srtConnections(c, s, (*wireSRTConnection).receive),
 			})
 		}
-		c.merge(ic)
+		c.pop()
 	}
 	for _, item := range ss.ndi {
-		ic := c.scope(string(item.id))
+		c.push(string(item.id))
 		s := item.wire
-		uptime := secondsDuration(ic.int("upTime", &s.UpTime))
+		uptime := secondsDuration(c.int("upTime", &s.UpTime))
 		if item.encoder {
 			stats.NDIEncoders = append(stats.NDIEncoders, NDIEncoderStats{
-				ID: item.id, Uptime: uptime, Clients: ic.int("ndiNumCon", &s.NDINumCon),
+				ID: item.id, Uptime: uptime, Clients: c.int("ndiNumCon", &s.NDINumCon),
 			})
 		} else {
 			stats.NDIDecoders = append(stats.NDIDecoders, NDIDecoderStats{
 				ID: item.id, Uptime: uptime,
-				InputFPS:  ic.float("vInFps", &s.VInFps),
-				OutputFPS: ic.float("vOutFps", &s.VOutFps),
+				InputFPS:  c.float("vInFps", &s.VInFps),
+				OutputFPS: c.float("vOutFps", &s.VOutFps),
 			})
 		}
-		c.merge(ic)
+		c.pop()
 	}
 	return stats, c.issues
 }

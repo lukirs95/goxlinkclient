@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -124,30 +125,28 @@ func issueFromError(key string, raw json.RawMessage, err error) decodeIssue {
 
 // collector converts lenient wire values to plain values and gathers every
 // invalid one as a decodeIssue. Each invalid value is reported only once: its
-// marker is cleared after it has been collected.
+// marker is cleared after it has been collected. Issue keys are prefixed with
+// the path of the element being converted; push and pop maintain it without
+// allocating, the key is only built for an issue.
 type collector struct {
-	prefix string
+	path   []string
 	issues []decodeIssue
 }
 
-// scope returns a collector that prefixes keys with name, e.g. a unit ID.
-func (c *collector) scope(name string) *collector {
-	prefix := name
-	if c.prefix != "" {
-		prefix = c.prefix + "." + name
-	}
-	return &collector{prefix: prefix}
+// push enters a nested scope such as a list, a unit ID or "values".
+func (c *collector) push(name string) {
+	c.path = append(c.path, name)
 }
 
-// merge appends the issues of a scoped collector.
-func (c *collector) merge(other *collector) {
-	c.issues = append(c.issues, other.issues...)
+// pop leaves the scope entered by the matching push.
+func (c *collector) pop() {
+	c.path = c.path[:len(c.path)-1]
 }
 
 func (c *collector) add(issues ...decodeIssue) {
 	for _, i := range issues {
-		if c.prefix != "" {
-			i.Key = c.prefix + "." + i.Key
+		if len(c.path) > 0 {
+			i.Key = strings.Join(c.path, ".") + "." + i.Key
 		}
 		c.issues = append(c.issues, i)
 	}
