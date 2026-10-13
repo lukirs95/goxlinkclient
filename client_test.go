@@ -45,6 +45,9 @@ type fakeDevice struct {
 	// state.unsubscribe requests.
 	units        map[string]json.RawMessage
 	unitRequests chan request
+	// failFirst lists units whose first state.subscribe fails like one for
+	// a remote system that is not reachable.
+	failFirst map[string]bool
 	// push sends notifications to the client.
 	push chan notification
 }
@@ -68,6 +71,7 @@ func newFakeDevice(t *testing.T, password string) *fakeDevice {
 		requests:       make(chan request, 16),
 		statsSubscribe: make(chan json.RawMessage, 1),
 		units:          map[string]json.RawMessage{},
+		failFirst:      map[string]bool{},
 		unitRequests:   make(chan request, 64),
 		push:           make(chan notification),
 	}
@@ -163,9 +167,21 @@ func (d *fakeDevice) serve(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if req.Method == "state.subscribe" || req.Method == "state.unsubscribe" {
-			d.unitRequests <- req
+			select {
+			case d.unitRequests <- req:
+			default:
+			}
 			var p struct{ ID string }
 			_ = json.Unmarshal(req.Params, &p)
+			if req.Method == "state.subscribe" && d.failFirst[p.ID] {
+				delete(d.failFirst, p.ID)
+				msg := map[string]any{"jsonrpc": "2.0", "id": req.ID, "error": json.RawMessage(
+					`{"code":-32603,"message":"Internal error","data":"Not Connected (system isn't online)"}`)}
+				if err := wsjson.Write(ctx, conn, msg); err != nil {
+					return
+				}
+				continue
+			}
 			var result any = map[string]any{"method": req.Method, "id": p.ID, "response": true}
 			if unit, ok := d.units[p.ID]; ok && req.Method == "state.subscribe" {
 				result = unit
@@ -520,13 +536,42 @@ func TestUnitConfigEndToEnd(t *testing.T) {
 		t.Errorf("E1 config after update = %+v", e1.Config)
 	}
 
-	// A deleted unit is reported and unsubscribed.
-	d.push <- notification{"systems.update", json.RawMessage(`{"sysid":"X8A1001","dataid":770,"data":{"local":{"enc":[{"id":"X8A1001-E2","delete":true}]}}}`)}
-	if u := waitUpdate(t, updates, "the removal", func(u Update) bool { return u.Kind == UpdateEncoder }); u.ID != "X8A1001-E2" || !u.Removed || u.Encoder != nil {
+	// A deleted unit is reported and unsubscribed. Rejected subscriptions,
+	// e.g. of E2, are retried in between but never unsubscribed.
+	d.push <- notification{"systems.update", json.RawMessage(`{"sysid":"X8A1001","dataid":770,"data":{"local":{"dec":[{"id":"X8A1001-D1","delete":true}]}}}`)}
+	if u := waitUpdate(t, updates, "the removal", func(u Update) bool { return u.Kind == UpdateDecoder && u.Removed }); u.ID != "X8A1001-D1" || u.Decoder != nil {
 		t.Errorf("removal = %+v", u)
 	}
-	if method, id := d.nextUnitRequest(t); method != "state.unsubscribe" || id != "X8A1001-E2" {
-		t.Errorf("unit request %s %s, want state.unsubscribe X8A1001-E2", method, id)
+	for {
+		method, id := d.nextUnitRequest(t)
+		if method == "state.subscribe" {
+			continue
+		}
+		if method != "state.unsubscribe" || id != "X8A1001-D1" {
+			t.Errorf("unit request %s %s, want state.unsubscribe X8A1001-D1", method, id)
+		}
+		break
+	}
+}
+
+func TestUnitConfigRetry(t *testing.T) {
+	d := newFakeDevice(t, "secret")
+	d.failFirst["X8A1001-E1"] = true
+	_, updates, stop := startClient(t, d, "secret")
+	defer func() { _ = stop() }()
+
+	// The first subscription of E1 fails; the retry loads the configuration.
+	waitUpdate(t, updates, "the configuration of E1", func(u Update) bool {
+		return isUnit(u, UpdateEncoder, "X8A1001-E1") && u.Encoder.Config != nil
+	})
+	n := 0
+	for len(d.unitRequests) > 0 {
+		if req := <-d.unitRequests; strings.Contains(string(req.Params), `"X8A1001-E1"`) {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("E1 was subscribed %d times, want 2", n)
 	}
 }
 

@@ -442,10 +442,6 @@ func (c *Client) readLoop(ctx context.Context, cancel context.CancelCauseFunc, s
 		}
 	}
 	handleConfig := func(r configResult) {
-		if r.err != nil {
-			c.logger.Warn("unit configuration is not available", slog.String("unit", string(r.id)), slog.Any("error", r.err))
-			return
-		}
 		var ic collector
 		c.stateMu.Lock()
 		list, err := st.applyUnitSubscribe(&ic, r.raw)
