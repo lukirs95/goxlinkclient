@@ -23,9 +23,9 @@ var (
 	ErrAlreadyRunning = errors.New("xlinkclient: client is already running")
 )
 
-// Update is a snapshot of a system together with the client that produced it.
-// The client can be used to send requests to the system.
-type Update struct {
+// SystemUpdate is a snapshot of a system together with the client that
+// produced it. The client can be used to send requests to the system.
+type SystemUpdate struct {
 	Client *Client
 	System System
 }
@@ -58,7 +58,7 @@ func WithLogger(logger *slog.Logger) Option {
 // every change. The channel may be shared by several clients. If the consumer
 // is slow, it receives the most recent snapshot of each client; intermediate
 // snapshots are dropped, but the connection is never blocked.
-func WithUpdates(ch chan<- Update) Option {
+func WithUpdates(ch chan<- SystemUpdate) Option {
 	return func(c *Client) {
 		c.updatesOut = ch
 	}
@@ -81,7 +81,7 @@ type Client struct {
 	password       string
 	hasCredentials bool
 	logger         *slog.Logger
-	updatesOut     chan<- Update
+	updatesOut     chan<- SystemUpdate
 	statsOut       chan<- StatsUpdate
 	jrpc           *jsonrpc.Client
 	running        atomic.Bool
@@ -185,7 +185,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 	var (
 		wg      sync.WaitGroup
-		updates *latest[Update]
+		updates *latest[SystemUpdate]
 		stats   *latest[StatsUpdate]
 		subs    = newSubscriptions()
 	)
@@ -314,7 +314,7 @@ func (c *Client) subscribeLocalStats(ctx context.Context) {
 // readLoop merges system messages and unit configurations into the state,
 // publishes snapshots and forwards statistics until ctx is done. After every
 // snapshot it hands the units to subscribe to want.
-func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate],
+func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[SystemUpdate], stats *latest[StatsUpdate],
 	want chan map[UnitID]bool, results <-chan configResult) {
 	var (
 		st     state
@@ -363,8 +363,15 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		}
 		publish()
 	}
+	logIssues := func(issues []decodeIssue) {
+		for _, issue := range issues {
+			c.logger.Warn("ignored invalid value from device", slog.String("value", issue.String()))
+		}
+	}
 	handleDelta := func(n jsonrpc.Notification) {
-		gap, err := st.applyUpdate(n.Params)
+		var ic collector
+		_, gap, err := st.applyUpdate(&ic, n.Params)
+		logIssues(ic.issues)
 		switch {
 		case errors.Is(err, errStaleUpdate):
 			c.logger.Debug("ignored stale update")
@@ -385,14 +392,19 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		if st.configs[r.id] == nil {
 			return // no longer subscribed
 		}
-		if _, err := st.configs.applySubscribe(r.raw); err != nil {
+		var ic collector
+		_, err := st.applyUnitSubscribe(&ic, r.raw)
+		logIssues(ic.issues)
+		if err != nil {
 			c.logger.Error("failed to apply unit configuration", slog.String("unit", string(r.id)), slog.Any("error", err))
 			return
 		}
 		publish()
 	}
 	handleUnitUpdate := func(n jsonrpc.Notification) {
-		gap, err := st.configs.applyUpdate(n.Params)
+		var ic collector
+		_, gap, err := st.applyUnitUpdate(&ic, n.Params)
+		logIssues(ic.issues)
 		switch {
 		case errors.Is(err, errStaleUpdate), errors.Is(err, errUnknownUnit):
 			c.logger.Debug("ignored unit update", slog.Any("reason", err))
@@ -469,7 +481,7 @@ func drain(ch jsonrpc.Subscription, handle func(jsonrpc.Notification)) {
 
 // publish stores a snapshot of st, hands it to the updates channel and
 // returns it. Values that could not be decoded are logged.
-func (c *Client) publish(st *state, updates *latest[Update]) System {
+func (c *Client) publish(st *state, updates *latest[SystemUpdate]) System {
 	sys, issues := st.snapshot()
 	for _, issue := range issues {
 		c.logger.Warn("ignored invalid value from device", slog.String("value", issue.String()))
@@ -482,7 +494,7 @@ func (c *Client) publish(st *state, updates *latest[Update]) System {
 	if updates != nil {
 		// The stored snapshot and the delivered one must not share slices.
 		delivered, _ := st.snapshot()
-		updates.put(Update{Client: c, System: delivered})
+		updates.put(SystemUpdate{Client: c, System: delivered})
 	}
 	return sys
 }

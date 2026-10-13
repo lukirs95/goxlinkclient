@@ -40,7 +40,7 @@ func mustSnapshot(t *testing.T, st *state) System {
 
 func mustApplyUpdate(t *testing.T, st *state, params []byte) {
 	t.Helper()
-	gap, err := st.applyUpdate(params)
+	_, gap, err := st.applyUpdate(&collector{}, params)
 	if err != nil {
 		t.Fatalf("applyUpdate returned error: %v", err)
 	}
@@ -301,17 +301,14 @@ func TestUpdateAddAndDelete(t *testing.T) {
 		t.Errorf("after delete: %d encoders, %d decoders, want 5/5", len(sys.Encoders), len(sys.Decoders))
 	}
 
-	// The heartbeat continues the sequence and only touches link times.
+	// The heartbeat continues the sequence and only touches link times,
+	// which jitter by a second and therefore stay unchanged.
 	before, _ := sys.Interface("eth3")
 	mustApplyUpdate(t, st, readFixture(t, "systems_update_heartbeat_1.8.json"))
 	sys = mustSnapshot(t, st)
 	after, _ := sys.Interface("eth3")
-	if want := mustTime(t, "2026-10-05 11:20:54 +0000"); !after.LinkSince.Equal(want) {
-		t.Errorf("eth3 LinkSince = %v, want %v", after.LinkSince, want)
-	}
-	after.LinkSince = before.LinkSince
-	if after != before {
-		t.Errorf("heartbeat changed more than LinkSince:\nbefore %+v\nafter  %+v", before, after)
+	if want := mustTime(t, "2026-10-05 11:20:55 +0000"); !after.LinkSince.Equal(want) || after != before {
+		t.Errorf("heartbeat changed eth3:\nbefore %+v\nafter  %+v", before, after)
 	}
 }
 
@@ -395,20 +392,20 @@ func TestUpdateSRTAndNDI(t *testing.T) {
 
 func TestUpdateGapAndOrder(t *testing.T) {
 	var st state
-	if _, err := st.applyUpdate([]byte(`{"dataid":2}`)); !errors.Is(err, errNoState) {
+	if _, _, err := st.applyUpdate(&collector{}, []byte(`{"dataid":2}`)); !errors.Is(err, errNoState) {
 		t.Errorf("update before full: err = %v, want errNoState", err)
 	}
 
 	if err := st.applyFull([]byte(`{"sysid":"X8A1001","dataid":1,"data":{"local":{"sysid":"X8A1001"}}}`)); err != nil {
 		t.Fatal(err)
 	}
-	if gap, err := st.applyUpdate([]byte(`{"dataid":2,"data":{}}`)); err != nil || gap {
+	if _, gap, err := st.applyUpdate(&collector{}, []byte(`{"dataid":2,"data":{}}`)); err != nil || gap {
 		t.Errorf("consecutive update: gap=%t err=%v, want no gap", gap, err)
 	}
-	if gap, err := st.applyUpdate([]byte(`{"dataid":5,"data":{}}`)); err != nil || !gap {
+	if _, gap, err := st.applyUpdate(&collector{}, []byte(`{"dataid":5,"data":{}}`)); err != nil || !gap {
 		t.Errorf("skipped update: gap=%t err=%v, want gap", gap, err)
 	}
-	if _, err := st.applyUpdate([]byte(`{"dataid":`)); err == nil {
+	if _, _, err := st.applyUpdate(&collector{}, []byte(`{"dataid":`)); err == nil {
 		t.Error("malformed update: want error")
 	}
 }
@@ -424,7 +421,7 @@ func TestStaleUpdateIgnored(t *testing.T) {
 		`{"dataid":5,"data":{"local":{"name":"same id"}}}`,
 		`{"dataid":3,"data":{"local":{"name":"older"}}}`,
 	} {
-		if _, err := st.applyUpdate([]byte(stale)); !errors.Is(err, errStaleUpdate) {
+		if _, _, err := st.applyUpdate(&collector{}, []byte(stale)); !errors.Is(err, errStaleUpdate) {
 			t.Errorf("applyUpdate(%s) = %v, want errStaleUpdate", stale, err)
 		}
 	}

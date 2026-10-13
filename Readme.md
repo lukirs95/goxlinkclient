@@ -21,7 +21,7 @@ slow consumer receives the most recent snapshot of each system and never blocks
 a connection.
 
 ```go
-updates := make(chan xlinkclient.Update)
+updates := make(chan xlinkclient.SystemUpdate)
 
 client := xlinkclient.New("10.0.0.1",
 	xlinkclient.WithCredentials("admin", password),

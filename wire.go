@@ -433,30 +433,30 @@ func (l *wireLinked) toSender(c *collector) LinkedSender {
 }
 
 type wireInterface struct {
-	ID           string   `json:"id"`
-	MAC          string   `json:"mac"`
-	DHCP         flexBool `json:"dhcp"`
-	IP           string   `json:"ip"`
-	Mask         string   `json:"mask"`
-	Gate         string   `json:"gate"`
-	DNS1         string   `json:"dns1"`
-	DNS2         string   `json:"dns2"`
-	Enabled      flexBool `json:"enabled"`
-	Link         flexBool `json:"link"`
-	LinkTime     flexTime `json:"linkTime"`
-	Speed        string   `json:"speed"`
-	Active       flexBool `json:"active"`
-	Internet     flexBool `json:"internet"`
-	GatePing     flexBool `json:"gatePing"`
-	AdminOnly    flexBool `json:"adminOnly"`
-	Admin        flexBool `json:"admin"`
-	AdminSSLOnly flexBool `json:"adminSslOnly"`
-	IGMP         flexBool `json:"igmp"`
-	NMOS         flexBool `json:"nmos"`
-	Default      flexBool `json:"default"`
-	DefaultLan   flexBool `json:"defaultLan"`
-	Backup       flexBool `json:"backup"`
-	L2SID        string   `json:"l2sId"`
+	ID           string     `json:"id"`
+	MAC          string     `json:"mac"`
+	DHCP         flexBool   `json:"dhcp"`
+	IP           string     `json:"ip"`
+	Mask         string     `json:"mask"`
+	Gate         string     `json:"gate"`
+	DNS1         string     `json:"dns1"`
+	DNS2         string     `json:"dns2"`
+	Enabled      flexBool   `json:"enabled"`
+	Link         flexBool   `json:"link"`
+	LinkTime     steadyTime `json:"linkTime"`
+	Speed        string     `json:"speed"`
+	Active       flexBool   `json:"active"`
+	Internet     flexBool   `json:"internet"`
+	GatePing     flexBool   `json:"gatePing"`
+	AdminOnly    flexBool   `json:"adminOnly"`
+	Admin        flexBool   `json:"admin"`
+	AdminSSLOnly flexBool   `json:"adminSslOnly"`
+	IGMP         flexBool   `json:"igmp"`
+	NMOS         flexBool   `json:"nmos"`
+	Default      flexBool   `json:"default"`
+	DefaultLan   flexBool   `json:"defaultLan"`
+	Backup       flexBool   `json:"backup"`
+	L2SID        string     `json:"l2sId"`
 }
 
 func (i *wireInterface) key() string { return i.ID }
@@ -476,7 +476,7 @@ func (i *wireInterface) toInterface(c *collector) Interface {
 		DNS:             [2]string{i.DNS1, i.DNS2},
 		Enabled:         c.bool("enabled", &i.Enabled),
 		LinkUp:          c.bool("link", &i.Link),
-		LinkSince:       c.time("linkTime", &i.LinkTime),
+		LinkSince:       c.time("linkTime", &i.LinkTime.flexTime),
 		Speed:           i.Speed,
 		Active:          c.bool("active", &i.Active),
 		Internet:        c.bool("internet", &i.Internet),
@@ -589,7 +589,7 @@ func (u *wirePeerUnit) toPeerUnit(c *collector) PeerUnit {
 }
 
 func (p *wirePeer) toPeer(c *collector) Peer {
-	peer := Peer{
+	peer := Peer{PeerInfo: PeerInfo{
 		ID:             SystemID(p.SysID),
 		Name:           p.Name,
 		Version:        p.SysVer,
@@ -607,7 +607,7 @@ func (p *wirePeer) toPeer(c *collector) Peer {
 			Port:        c.int("manPort", &p.ManPort),
 			AutoConnect: c.bool("manAutCon", &p.ManAutCon),
 		},
-	}
+	}}
 	// The web UI shows the times only while the flags are set.
 	if c.bool("reboot", &p.Reboot) {
 		peer.RebootReceived = c.time("rebootT", &p.RebootT)
@@ -685,64 +685,6 @@ func (p *wireParams) toSystem(c *collector) System {
 	sys.Interfaces = convertList(c, "nets", &l.Network.Nets, (*wireInterface).toInterface)
 	sys.Peers = convertList(c, "remote", &p.Data.Remote, (*wirePeer).toPeer)
 	return sys
-}
-
-// errNoState is returned when an update arrives before the full state.
-var errNoState = errors.New("xlinkclient: update received before full state")
-
-// state is the merged wire state of one system.
-type state struct {
-	wire    wireParams
-	loaded  bool
-	configs configs
-}
-
-// applyFull replaces the state with a systems.full message.
-func (s *state) applyFull(params json.RawMessage) error {
-	var w wireParams
-	if err := decodeParams(params, &w); err != nil {
-		return err
-	}
-	s.wire = w
-	s.loaded = true
-	return nil
-}
-
-// errStaleUpdate is returned for an update that is not newer than the state,
-// e.g. one that was processed after a later systems.full.
-var errStaleUpdate = errors.New("xlinkclient: stale update ignored")
-
-// applyUpdate merges a systems.update message into the state. gap reports
-// whether messages were lost since the previous one, judged by dataid. An
-// update whose dataid is not newer than the state is ignored and reported as
-// errStaleUpdate.
-func (s *state) applyUpdate(params json.RawMessage) (gap bool, err error) {
-	if !s.loaded {
-		return false, errNoState
-	}
-	var head struct {
-		DataID flexInt `json:"dataid"`
-	}
-	if err := json.Unmarshal(params, &head); err != nil {
-		return false, fmt.Errorf("xlinkclient: decode system message: %w", err)
-	}
-	prev := s.wire.DataID.Value
-	if head.DataID.Value <= prev {
-		return false, errStaleUpdate
-	}
-	if err := decodeParams(params, &s.wire); err != nil {
-		return false, err
-	}
-	return s.wire.DataID.Value != prev+1, nil
-}
-
-// snapshot converts the state to the public model. It returns the issues
-// found since the previous snapshot.
-func (s *state) snapshot() (System, []decodeIssue) {
-	var c collector
-	sys := s.wire.toSystem(&c)
-	s.configs.attach(&c, &sys)
-	return sys, c.issues
 }
 
 // decodeParams decodes params into w. Type mismatches of single fields are

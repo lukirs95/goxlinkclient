@@ -31,6 +31,9 @@ type keyedElement[T any] interface {
 type keyedList[T any, P keyedElement[T]] struct {
 	items  []*T
 	issues []decodeIssue
+	// observe, if set, is called for every element of a decoded array
+	// before it is applied, with the existing element or nil for a new one.
+	observe func(key string, existing P, deleted bool)
 }
 
 // keyedHead holds the fields needed to address an element before decoding it.
@@ -63,6 +66,13 @@ func (l *keyedList[T, P]) UnmarshalJSON(data []byte) error {
 		}
 		k := head.key()
 		idx := slices.IndexFunc(l.items, func(e *T) bool { return P(e).key() == k })
+		if l.observe != nil {
+			var existing P
+			if idx >= 0 {
+				existing = l.items[idx]
+			}
+			l.observe(k, existing, head.Delete)
+		}
 
 		if head.Delete {
 			if idx >= 0 {
@@ -77,6 +87,16 @@ func (l *keyedList[T, P]) UnmarshalJSON(data []byte) error {
 		}
 		if err := json.Unmarshal(raw, l.items[idx]); err != nil {
 			l.issues = append(l.issues, issueFromError(k, raw, err))
+		}
+	}
+	return nil
+}
+
+// find returns the element with the given key, or nil.
+func (l *keyedList[T, P]) find(key string) P {
+	for _, e := range l.items {
+		if P(e).key() == key {
+			return e
 		}
 	}
 	return nil

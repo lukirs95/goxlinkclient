@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 	"testing"
+	"time"
 )
 
 func TestFlexIntUnmarshal(t *testing.T) {
@@ -263,5 +264,26 @@ func TestErrorDataInResponse(t *testing.T) {
 	}
 	if got := msg.Error.Data.Fields["vModeLock"]; got != "Video Mode auto Not supported for Card 12" {
 		t.Errorf("Fields[vModeLock] = %q", got)
+	}
+}
+
+func TestSteadyTimeIgnoresJitter(t *testing.T) {
+	var st steadyTime
+	for _, step := range []struct {
+		in   string
+		want string
+	}{
+		{`"2026-10-12 08:49:52 +0000"`, "08:49:52"},
+		{`"2026-10-12 08:49:53 +0000"`, "08:49:52"}, // one second of jitter
+		{`"2026-10-12 08:49:51 +0000"`, "08:49:52"},
+		{`"2026-10-12 11:20:54 +0000"`, "11:20:54"}, // the link came up again
+		{`"2020-01-01 00:00:00 +0000"`, "00:00:00"}, // never
+	} {
+		if err := json.Unmarshal([]byte(step.in), &st); err != nil {
+			t.Fatal(err)
+		}
+		if got := st.Value.Format(time.TimeOnly); got != step.want {
+			t.Errorf("after %s: %s, want %s", step.in, got, step.want)
+		}
 	}
 }

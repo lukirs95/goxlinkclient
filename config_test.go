@@ -17,7 +17,7 @@ func loadConfigs(t *testing.T) configs {
 	}
 	cs := configs{}
 	for _, r := range responses {
-		if _, err := cs.applySubscribe(r); err != nil {
+		if _, err := subscribeRaw(cs, r); err != nil {
 			t.Fatalf("applySubscribe: %v", err)
 		}
 	}
@@ -111,20 +111,20 @@ func TestConfigUpdates(t *testing.T) {
 	}
 
 	// A delta changes only the keys it carries.
-	if gap, err := cs.applyUpdate(update(2, `{"vPIntraOn":false}`)); err != nil || gap || intraRefresh() {
+	if gap, err := updateRaw(cs, update(2, `{"vPIntraOn":false}`)); err != nil || gap || intraRefresh() {
 		t.Fatalf("update 2: gap %t err %v intra %t", gap, err, intraRefresh())
 	}
 	if v, _ := cs.get("X8A1001-E1"); v.Name != "Encoder 106" || v.VTBR.Value != 18 {
 		t.Errorf("unchanged values lost: %+v", v)
 	}
 	// Old updates are ignored, lost ones reported.
-	if _, err := cs.applyUpdate(update(2, `{"vPIntraOn":true}`)); !errors.Is(err, errStaleUpdate) || intraRefresh() {
+	if _, err := updateRaw(cs, update(2, `{"vPIntraOn":true}`)); !errors.Is(err, errStaleUpdate) || intraRefresh() {
 		t.Errorf("stale update: err %v intra %t", err, intraRefresh())
 	}
-	if gap, err := cs.applyUpdate(update(5, `{"vPIntraOn":true}`)); err != nil || !gap || !intraRefresh() {
+	if gap, err := updateRaw(cs, update(5, `{"vPIntraOn":true}`)); err != nil || !gap || !intraRefresh() {
 		t.Errorf("update 5: gap %t err %v intra %t", gap, err, intraRefresh())
 	}
-	if _, err := cs.applyUpdate(json.RawMessage(`{"id":"X8A1001-E9","dataid":2,"data":{}}`)); !errors.Is(err, errUnknownUnit) {
+	if _, err := updateRaw(cs, json.RawMessage(`{"id":"X8A1001-E9","dataid":2,"data":{}}`)); !errors.Is(err, errUnknownUnit) {
 		t.Errorf("unknown unit: err %v", err)
 	}
 
@@ -136,7 +136,7 @@ func TestConfigUpdates(t *testing.T) {
 		t.Fatal("expected unit is loaded")
 	}
 	for _, u := range []json.RawMessage{update(1, `{"vTBR":5}`), update(2, `{"vPIntraOn":false}`)} {
-		if _, err := cs.applyUpdate(u); err != nil {
+		if _, err := updateRaw(cs, u); err != nil {
 			t.Fatalf("pending update: %v", err)
 		}
 	}
@@ -144,10 +144,29 @@ func TestConfigUpdates(t *testing.T) {
 	if err := json.Unmarshal(readFixture(t, "state_subscribe_1.8.json"), &all); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cs.applySubscribe(all[0]); err != nil {
+	if _, err := subscribeRaw(cs, all[0]); err != nil {
 		t.Fatal(err)
 	}
 	if v, _ := cs.get("X8A1001-E1"); v.VTBR.Value != 18 || v.VPIntraOn.Value || cs["X8A1001-E1"].dataID != 2 {
 		t.Errorf("after response: vTBR %d intra %t dataid %d, want 18/false/2", v.VTBR.Value, v.VPIntraOn.Value, cs["X8A1001-E1"].dataID)
 	}
+}
+
+// subscribeRaw applies an encoded state.subscribe response.
+func subscribeRaw(cs configs, raw json.RawMessage) (UnitID, error) {
+	m, err := decodeConfigMessage(raw)
+	if err != nil {
+		return "", err
+	}
+	return UnitID(m.ID), cs.applySubscribe(&m)
+}
+
+// updateRaw applies an encoded state.update.
+func updateRaw(cs configs, raw json.RawMessage) (gap bool, err error) {
+	m, err := decodeConfigMessage(raw)
+	if err != nil {
+		return false, err
+	}
+	_, gap, err = cs.applyUpdate(&m, raw)
+	return gap, err
 }

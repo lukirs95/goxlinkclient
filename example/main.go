@@ -28,7 +28,7 @@ func main() {
 	defer stop()
 
 	// One pair of channels serves all systems.
-	updates := make(chan xlinkclient.Update)
+	updates := make(chan xlinkclient.SystemUpdate)
 	stats := make(chan xlinkclient.StatsUpdate)
 
 	var wg sync.WaitGroup

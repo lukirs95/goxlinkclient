@@ -58,6 +58,15 @@ type Ports struct {
 
 // Peer is a configured remote system as seen from the local system.
 type Peer struct {
+	PeerInfo
+	Encoders   []PeerUnit
+	Decoders   []PeerUnit
+	Interfaces []Interface
+}
+
+// PeerInfo holds the fields of a remote system that do not belong to one of
+// its units or interfaces.
+type PeerInfo struct {
 	ID         SystemID
 	Name       string
 	Version    string
@@ -75,9 +84,6 @@ type Peer struct {
 	RebootReceived   time.Time
 	ShutdownReceived time.Time
 	ManualIP         ManualIP
-	Encoders         []PeerUnit
-	Decoders         []PeerUnit
-	Interfaces       []Interface
 }
 
 // ManualIP is the manual connection setting for a remote system.

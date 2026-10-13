@@ -205,9 +205,9 @@ func (d *fakeDevice) nextRequest(t *testing.T) request {
 
 // startClient runs a client against d and returns it with the channel of its
 // updates and a function that stops it and returns the result of Run.
-func startClient(t *testing.T, d *fakeDevice, password string) (*Client, chan Update, func() error) {
+func startClient(t *testing.T, d *fakeDevice, password string) (*Client, chan SystemUpdate, func() error) {
 	t.Helper()
-	updates := make(chan Update)
+	updates := make(chan SystemUpdate)
 	c := New(d.addr(), WithCredentials("admin", password), WithUpdates(updates))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -432,7 +432,7 @@ func TestRunNotConcurrent(t *testing.T) {
 }
 
 // waitSystem returns the first snapshot from updates that satisfies cond.
-func waitSystem(t *testing.T, updates <-chan Update, what string, cond func(System) bool) System {
+func waitSystem(t *testing.T, updates <-chan SystemUpdate, what string, cond func(System) bool) System {
 	t.Helper()
 	timeout := time.After(3 * time.Second)
 	for {

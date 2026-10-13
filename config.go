@@ -435,62 +435,69 @@ type wireConfigMessage struct {
 // configs are the configurations of the subscribed units.
 type configs map[UnitID]*unitConfig
 
-// applySubscribe replaces the configuration of a unit with a state.subscribe
-// response and applies the updates received before it.
-func (cs configs) applySubscribe(raw json.RawMessage) (UnitID, error) {
+// decodeConfigMessage decodes a state.subscribe response or the params of a
+// state.update. The values are decoded when they are applied.
+func decodeConfigMessage(raw json.RawMessage) (wireConfigMessage, error) {
 	var m wireConfigMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return "", fmt.Errorf("xlinkclient: decode state.subscribe response: %w", err)
+		return m, fmt.Errorf("xlinkclient: decode unit configuration message: %w", err)
 	}
+	return m, nil
+}
+
+// applySubscribe replaces the configuration of a unit with a state.subscribe
+// response and applies the updates received before it.
+func (cs configs) applySubscribe(m *wireConfigMessage) error {
 	id := UnitID(m.ID)
 	uc := &unitConfig{dataID: m.DataID.Value, loaded: true}
 	if err := decodeConfigValues(m.Data.Values, &uc.values); err != nil {
-		return id, err
+		return err
 	}
 	var pending []json.RawMessage
 	if old := cs[id]; old != nil {
 		pending = old.pending
 	}
 	cs[id] = uc
-	for _, p := range pending {
-		if _, err := cs.applyUpdate(p); err != nil && !errors.Is(err, errStaleUpdate) {
-			return id, err
+	for _, raw := range pending {
+		p, err := decodeConfigMessage(raw)
+		if err != nil {
+			return err
+		}
+		if _, _, err := cs.applyUpdate(&p, raw); err != nil && !errors.Is(err, errStaleUpdate) {
+			return err
 		}
 	}
-	return id, nil
+	return nil
 }
 
-// applyUpdate merges a state.update message. An update for a unit whose
-// response is still outstanding is kept until the response arrives; one that
-// is not newer than the configuration is reported as errStaleUpdate. gap
-// reports whether updates were lost, judged by dataid.
-func (cs configs) applyUpdate(raw json.RawMessage) (gap bool, err error) {
-	var m wireConfigMessage
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return false, fmt.Errorf("xlinkclient: decode state.update: %w", err)
-	}
-	id := UnitID(m.ID)
-	uc := cs[id]
+// applyUpdate merges a state.update message; raw is its encoded form. An
+// update for a unit whose response is still outstanding is kept until the
+// response arrives; one that is not newer than the configuration is reported
+// as errStaleUpdate. changed reports whether values were applied, gap whether
+// updates were lost, judged by dataid.
+func (cs configs) applyUpdate(m *wireConfigMessage, raw json.RawMessage) (changed, gap bool, err error) {
+	uc := cs[UnitID(m.ID)]
 	if uc == nil {
-		return false, errUnknownUnit
+		return false, false, errUnknownUnit
 	}
 	if !uc.loaded {
 		if len(uc.pending) < maxPendingUpdates {
 			uc.pending = append(uc.pending, raw)
 		}
-		return false, nil
+		return false, false, nil
 	}
 	if m.DataID.Value <= uc.dataID {
-		return false, errStaleUpdate
+		return false, false, errStaleUpdate
 	}
 	if len(m.Data.Values) > 0 {
 		if err := decodeConfigValues(m.Data.Values, &uc.values); err != nil {
-			return false, err
+			return false, false, err
 		}
+		changed = true
 	}
 	gap = m.DataID.Value != uc.dataID+1
 	uc.dataID = m.DataID.Value
-	return gap, nil
+	return changed, gap, nil
 }
 
 // errUnknownUnit is returned for a state.update of a unit that is not
@@ -528,56 +535,73 @@ func (cs configs) get(id UnitID) (*wireConfigValues, bool) {
 	return &uc.values, true
 }
 
-// attach adds the loaded configurations to the units of sys.
-func (cs configs) attach(c *collector, sys *System) {
-	cc := c.scope("config")
-	for i := range sys.Encoders {
-		e := &sys.Encoders[i]
-		if v, ok := cs.get(e.ID); ok {
-			cfg := v.encoder(cc.scope(string(e.ID)))
-			e.Config = &cfg
-		}
-		if v, ok := cs.get(e.Receiver.ID); ok && e.Receiver.ID != "" {
-			cfg := v.decoder(cc.scope(string(e.Receiver.ID)))
-			e.Receiver.Config = &cfg
-		}
+// The attach methods add the loaded configurations to a unit and its
+// counterpart. c is the scope of the unit.
+
+func (cs configs) attachEncoder(c *collector, e *Encoder) {
+	if v, ok := cs.get(e.ID); ok {
+		cc := c.scope("config")
+		cfg := v.encoder(cc)
+		c.merge(cc)
+		e.Config = &cfg
 	}
-	for i := range sys.Decoders {
-		d := &sys.Decoders[i]
-		if v, ok := cs.get(d.ID); ok {
-			cfg := v.decoder(cc.scope(string(d.ID)))
-			d.Config = &cfg
-		}
-		if v, ok := cs.get(d.Sender.ID); ok && d.Sender.ID != "" {
-			cfg := v.encoder(cc.scope(string(d.Sender.ID)))
-			d.Sender.Config = &cfg
-		}
+	if v, ok := cs.get(e.Receiver.ID); ok && e.Receiver.ID != "" {
+		cc := c.scope("receiver.config")
+		cfg := v.decoder(cc)
+		c.merge(cc)
+		e.Receiver.Config = &cfg
 	}
-	for i := range sys.SRTEncoders {
-		if v, ok := cs.get(sys.SRTEncoders[i].ID); ok {
-			cfg := v.srtEncoder(cc.scope(string(sys.SRTEncoders[i].ID)))
-			sys.SRTEncoders[i].Config = &cfg
-		}
+}
+
+func (cs configs) attachDecoder(c *collector, d *Decoder) {
+	if v, ok := cs.get(d.ID); ok {
+		cc := c.scope("config")
+		cfg := v.decoder(cc)
+		c.merge(cc)
+		d.Config = &cfg
 	}
-	for i := range sys.SRTDecoders {
-		if v, ok := cs.get(sys.SRTDecoders[i].ID); ok {
-			cfg := v.srtDecoder(cc.scope(string(sys.SRTDecoders[i].ID)))
-			sys.SRTDecoders[i].Config = &cfg
-		}
+	if v, ok := cs.get(d.Sender.ID); ok && d.Sender.ID != "" {
+		cc := c.scope("sender.config")
+		cfg := v.encoder(cc)
+		c.merge(cc)
+		d.Sender.Config = &cfg
 	}
-	for i := range sys.NDIEncoders {
-		if v, ok := cs.get(sys.NDIEncoders[i].ID); ok {
-			cfg := v.ndiEncoder(cc.scope(string(sys.NDIEncoders[i].ID)))
-			sys.NDIEncoders[i].Config = &cfg
-		}
+}
+
+func (cs configs) attachSRTEncoder(c *collector, e *SRTEncoder) {
+	if v, ok := cs.get(e.ID); ok {
+		cc := c.scope("config")
+		cfg := v.srtEncoder(cc)
+		c.merge(cc)
+		e.Config = &cfg
 	}
-	for i := range sys.NDIDecoders {
-		if v, ok := cs.get(sys.NDIDecoders[i].ID); ok {
-			cfg := v.ndiDecoder(cc.scope(string(sys.NDIDecoders[i].ID)))
-			sys.NDIDecoders[i].Config = &cfg
-		}
+}
+
+func (cs configs) attachSRTDecoder(c *collector, d *SRTDecoder) {
+	if v, ok := cs.get(d.ID); ok {
+		cc := c.scope("config")
+		cfg := v.srtDecoder(cc)
+		c.merge(cc)
+		d.Config = &cfg
 	}
-	c.merge(cc)
+}
+
+func (cs configs) attachNDIEncoder(c *collector, e *NDIEncoder) {
+	if v, ok := cs.get(e.ID); ok {
+		cc := c.scope("config")
+		cfg := v.ndiEncoder(cc)
+		c.merge(cc)
+		e.Config = &cfg
+	}
+}
+
+func (cs configs) attachNDIDecoder(c *collector, d *NDIDecoder) {
+	if v, ok := cs.get(d.ID); ok {
+		cc := c.scope("config")
+		cfg := v.ndiDecoder(cc)
+		c.merge(cc)
+		d.Config = &cfg
+	}
 }
 
 // subscribable returns the units whose configuration is subscribed: all local

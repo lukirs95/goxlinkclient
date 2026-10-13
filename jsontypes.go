@@ -246,6 +246,23 @@ func (t flexTime) issue(key string) (decodeIssue, bool) {
 	return decodeIssue{Key: key, Raw: t.Invalid}, t.Invalid != nil
 }
 
+// steadyTime is a timestamp the device derives from its uptime, such as the
+// time a link came up. Consecutive messages report it with up to a second of
+// jitter; such changes are ignored, so the value only changes for real.
+type steadyTime struct {
+	flexTime
+}
+
+// UnmarshalJSON implements json.Unmarshaler. It never returns an error.
+func (t *steadyTime) UnmarshalJSON(data []byte) error {
+	prev := t.Value
+	_ = t.flexTime.UnmarshalJSON(data)
+	if d := t.Value.Sub(prev); !prev.IsZero() && !t.Value.IsZero() && d >= -time.Second && d <= time.Second {
+		t.Value = prev
+	}
+	return nil
+}
+
 // errorData is the "data" member of a JSON-RPC error sent by the device.
 //
 // Rejected config requests report the offending keys as an object, e.g.
