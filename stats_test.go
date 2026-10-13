@@ -135,8 +135,8 @@ func TestMergeStats(t *testing.T) {
 	}
 }
 
-func TestMergeStatsSRT(t *testing.T) {
-	ss, issues, err := decodeSystemStats(readFixture(t, "stats_system_srt_1.8.json"))
+func TestMergeStatsSRTAndNDI(t *testing.T) {
+	ss, issues, err := decodeSystemStats(readFixture(t, "stats_system_srt_ndi_1.8.json"))
 	if err != nil {
 		t.Fatalf("decodeSystemStats: %v", err)
 	}
@@ -170,6 +170,13 @@ func TestMergeStatsSRT(t *testing.T) {
 	}
 	if dec.ID != "X8A1001-srtD1" || dec.Clients != 0 || len(dec.Connections) != 1 || dec.Connections[0] != wantConn {
 		t.Errorf("SRT decoder = %+v, want connection %+v", dec, wantConn)
+	}
+
+	// NDI units report fractional-looking numbers such as 25.0.
+	wantNDIEnc := []NDIEncoderStats{{ID: "X8A1001-NdiE7", Uptime: 65 * time.Second, Clients: 1}}
+	wantNDIDec := []NDIDecoderStats{{ID: "X8A1001-NdiD6", Uptime: 54 * time.Second, InputFPS: 25, OutputFPS: 25}}
+	if !slices.Equal(s.NDIEncoders, wantNDIEnc) || !slices.Equal(s.NDIDecoders, wantNDIDec) {
+		t.Errorf("NDI = %+v / %+v, want %+v / %+v", s.NDIEncoders, s.NDIDecoders, wantNDIEnc, wantNDIDec)
 	}
 
 	// Every Stats value has its own slices.

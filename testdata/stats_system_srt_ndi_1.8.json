@@ -76,6 +76,26 @@
           "upTime": 149,
           "statsTime": 147
         }
+      },
+      {
+        "id": "X8A1001-NdiE7",
+        "type": 3,
+        "data": {
+          "vInFps": 25.0,
+          "vOutFps": 25.0,
+          "ndiNumCon": 1,
+          "upTime": 65
+        }
+      },
+      {
+        "id": "X8A1001-NdiD6",
+        "type": 4,
+        "data": {
+          "vInFps": 25.0,
+          "vOutFps": 25.0,
+          "ndiNumCon": 0,
+          "upTime": 54
+        }
       }
     ],
     "remote": []

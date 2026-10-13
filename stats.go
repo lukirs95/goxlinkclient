@@ -14,7 +14,7 @@ import (
 // The device sends statistics in two messages. systems.localStats carries the
 // local XLink units and the active interfaces together with their
 // counterparts; the web UI plots it. systems.stats carries every unit of the
-// local and the remote systems, including SRT units, and the system
+// local and the remote systems, including SRT and NDI units, and the system
 // health; the web UI shows it as text. Stats contains the values the web UI
 // shows: those of systems.localStats, completed with the values only
 // systems.stats reports, matched by unit ID.
@@ -33,6 +33,8 @@ type Stats struct {
 	Decoders    []DecoderStats
 	SRTEncoders []SRTEncoderStats
 	SRTDecoders []SRTDecoderStats
+	NDIEncoders []NDIEncoderStats
+	NDIDecoders []NDIDecoderStats
 	// Peers are the remote systems reported by systems.stats.
 	Peers []PeerStats
 }
@@ -264,11 +266,29 @@ type SRTReceiveStats struct {
 	NAK      int64
 }
 
+// NDIEncoderStats are the statistics of a local NDI sender.
+type NDIEncoderStats struct {
+	ID     UnitID
+	Uptime time.Duration
+	// Clients is the number of connected NDI receivers.
+	Clients int
+}
+
+// NDIDecoderStats are the statistics of a local NDI receiver.
+type NDIDecoderStats struct {
+	ID        UnitID
+	Uptime    time.Duration
+	InputFPS  float64
+	OutputFPS float64
+}
+
 // Stats item types used by both statistics messages.
 const (
 	statsTypeSystem     = 0 // the system itself and its interfaces
 	statsTypeEncoder    = 1
 	statsTypeDecoder    = 2
+	statsTypeNDIEncoder = 3
+	statsTypeNDIDecoder = 4
 	statsTypeSRTEncoder = 8
 	statsTypeSRTDecoder = 9
 )
@@ -764,6 +784,14 @@ func srtConnections[T any](c *collector, s *wireSRTStats, conv func(*wireSRTConn
 	return out
 }
 
+// wireNDIStats is an NDI unit in systems.stats.
+type wireNDIStats struct {
+	UpTime    flexInt   `json:"upTime"`
+	VInFps    flexFloat `json:"vInFps"`
+	VOutFps   flexFloat `json:"vOutFps"`
+	NDINumCon flexInt   `json:"ndiNumCon"`
+}
+
 // systemStats is a decoded systems.stats message. The units are converted by
 // mergeStats, so every Stats value gets its own slices; the XLink units of all
 // systems are kept by ID to complete systems.localStats.
@@ -771,6 +799,7 @@ type systemStats struct {
 	health   Health
 	peers    []PeerStats
 	srt      []srtItem
+	ndi      []ndiItem
 	encoders map[UnitID]*wireEncoderMetrics
 	decoders map[UnitID]*wireDecoderMetrics
 }
@@ -780,6 +809,13 @@ type srtItem struct {
 	id      UnitID
 	encoder bool
 	wire    *wireSRTStats
+}
+
+// ndiItem is an NDI unit of the local system.
+type ndiItem struct {
+	id      UnitID
+	encoder bool
+	wire    *wireNDIStats
 }
 
 // decodeSystemStats decodes a systems.stats message.
@@ -808,8 +844,8 @@ func decodeSystemStats(params json.RawMessage) (systemStats, []decodeIssue, erro
 	return ss, c.issues, nil
 }
 
-// addUnits adds the unit items of one system. SRT units are only kept for
-// the local system.
+// addUnits adds the unit items of one system. SRT and NDI units are only
+// kept for the local system.
 func (ss *systemStats) addUnits(c *collector, items []wireStatsItem, local bool) {
 	for _, item := range items {
 		if len(item.Data) == 0 {
@@ -841,6 +877,16 @@ func (ss *systemStats) addUnits(c *collector, items []wireStatsItem, local bool)
 				break
 			}
 			ss.srt = append(ss.srt, srtItem{id: UnitID(item.ID), encoder: item.Type == statsTypeSRTEncoder, wire: &s})
+		case statsTypeNDIEncoder, statsTypeNDIDecoder:
+			if !local {
+				break
+			}
+			var s wireNDIStats
+			if err := json.Unmarshal(item.Data, &s); err != nil {
+				ic.add(issueFromError("data", item.Data, err))
+				break
+			}
+			ss.ndi = append(ss.ndi, ndiItem{id: UnitID(item.ID), encoder: item.Type == statsTypeNDIEncoder, wire: &s})
 		}
 		c.merge(ic)
 	}
@@ -885,6 +931,8 @@ func mergeStats(ls localStats, ss systemStats) (Stats, []decodeIssue) {
 		Decoders:    ls.Decoders,
 		SRTEncoders: []SRTEncoderStats{},
 		SRTDecoders: []SRTDecoderStats{},
+		NDIEncoders: []NDIEncoderStats{},
+		NDIDecoders: []NDIDecoderStats{},
 		Peers:       slices.Clone(ss.peers),
 	}
 	for _, item := range ss.srt {
@@ -902,6 +950,23 @@ func mergeStats(ls localStats, ss systemStats) (Stats, []decodeIssue) {
 			stats.SRTDecoders = append(stats.SRTDecoders, SRTDecoderStats{
 				ID: item.id, Uptime: uptime, StatsTime: statsTime, Clients: clients,
 				Connections: srtConnections(ic, s, (*wireSRTConnection).receive),
+			})
+		}
+		c.merge(ic)
+	}
+	for _, item := range ss.ndi {
+		ic := c.scope(string(item.id))
+		s := item.wire
+		uptime := secondsDuration(ic.int("upTime", &s.UpTime))
+		if item.encoder {
+			stats.NDIEncoders = append(stats.NDIEncoders, NDIEncoderStats{
+				ID: item.id, Uptime: uptime, Clients: ic.int("ndiNumCon", &s.NDINumCon),
+			})
+		} else {
+			stats.NDIDecoders = append(stats.NDIDecoders, NDIDecoderStats{
+				ID: item.id, Uptime: uptime,
+				InputFPS:  ic.float("vInFps", &s.VInFps),
+				OutputFPS: ic.float("vOutFps", &s.VOutFps),
 			})
 		}
 		c.merge(ic)

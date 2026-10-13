@@ -103,7 +103,9 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   `pktSentACK`, `pktSentNAK`. Gestoppte Units melden `upTime`/`statsTime` 0, behalten aber
   die letzten `srtStats`; die UI zeigt `callersNr` nur, solange die Unit läuft. `vInFps`
   und `vOutFps` sind auch im Betrieb 0.
-- NDI-Units kamen in den Mitschnitten nicht vor.
+- **NDI** steht ebenfalls nur in `systems.stats` (`type 3`/`4`): `vInFps`, `vOutFps`,
+  `ndiNumCon`, `upTime`. Die UI zeigt beim NDI-Sender `ndiNumCon` („Clients Connected“) und
+  `upTime`, beim NDI-Empfänger `vInFps`, `vOutFps` und `upTime`.
 - Framerates können gebrochen sein (`vInFps: 24.99`), auch in `systems.localStats`.
 
 ## 2. Detail-Subscriptions (neu)
