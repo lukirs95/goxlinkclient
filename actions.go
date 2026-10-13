@@ -7,8 +7,11 @@ import "context"
 // Linked XLink units can only be started once their connection is up, which
 // takes a few seconds after linking (the green dot in the web UI; XLink and
 // the counterpart's Connected in the snapshot). An earlier start is accepted
-// by the device but has no effect. A decoder does not run without a free
-// decoder license either, although the start is accepted.
+// by the device but has no effect. Starting a decoder reconnects the tunnel,
+// so the start of its encoder can be lost the same way and has to be repeated
+// once the connection is up again. A decoder does not run without an output
+// or without a free decoder license either, although the start is accepted;
+// the device then keeps restarting it.
 func (c *Client) Start(ctx context.Context, id UnitID) error {
 	return c.callUnit(ctx, methodStart, c.SystemID(), string(id), nil)
 }
