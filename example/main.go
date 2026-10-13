@@ -64,8 +64,8 @@ func main() {
 				s.Stats.System, s.Stats.Health.CPU, s.Stats.Health.CPUTemp, s.Stats.Health.PTPSync)
 			for _, dec := range s.Stats.Decoders {
 				if dec.Running {
-					fmt.Printf("  %s %d fps, %.1f Mbps, RTT %v, health %.0f%%\n",
-						dec.ID, dec.OutputFPS, dec.RX, dec.XLink.RTT, dec.Receive.Health)
+					fmt.Printf("  %s %.2f fps, %.1f Mbps, sender RTT %v, %d frames dropped\n",
+						dec.ID, dec.OutputFPS, dec.RX, dec.Sender.XLink.RTT, dec.Video.Dropped)
 				}
 			}
 		}

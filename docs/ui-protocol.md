@@ -69,9 +69,9 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
 | Aufbau | `{sysid, dataid, time, data:[{id, type, data}]}` | `{sysid, dataid, data:{time, local:[…], remote:[{sysid, data:[…]}]}}` |
 | System (`type 0`, id = sysid) | **ohne `data`** | `ptp`, `ptpSync`, `ptpSyncLocal`, `nmos`, `osUpTime` (s), `cpu` (%), `cpuTemp`, `sysTemp`, `vTotRun`, `vLic`, `vLicDec`, `vLicUsed`, `vLicUsedDec` |
 | ETHs (`type 0`, `ethN`) | nur aktive: `rx`, `tx` (Mbps) | alle |
-| Encoder (`type 1`) | `running`, `upTime`, `vInFps`, `xLink{rtt,p2p,resent}` + `receiver{…Decoder-Stats…}` | `xLink` mit ARQ-Details, `aInCh`, `statsTime` |
-| Decoder (`type 2`) | `running`, `upTime`, `vOutFps`, `mbps{rx,tx}`, `xLink`, `vDstats`, `aDstats`, `vPbuffer`, `vRstats` (Jitter, Late, Loss, Health) + `sender{…}` | weniger Details |
-| Remote-Systeme | – | System-Werte wie oben plus `rtt` (**String**, z. B. `"0.201"`) |
+| Encoder (`type 1`) | `running`, `upTime`, `vInFps`, `vInT`, `xLink{rtt,p2p,resent}` + `receiver{…Decoder-Stats…}` | `upTime`, `statsTime`, `vInFps`, `vInT`, `xLink` mit ARQ-Details (`xAck`, `xAckR`, `cloud`, `noAck`, `lateAck`, `dropAck`, `resentAck`, `lateAckResent`, `dropAckResent`, …), `aInCh{n:{id, dBFS_RMS, dBFS_peak}}` (Strings) |
+| Decoder (`type 2`) | `running`, `upTime`, `vOutFps`, `mbps{rx,tx}`, `xLink`, `vDstats`, `aDstats`, `vPbuffer`, `vRstats` (Playout-Buffer: `delay`, `head_min_ms`, Jitter, Loss, Health) + `sender{…}` | `upTime`, `statsTime`, `vDecFps`, `vOutFps`, `mbps`, `xLink`, `vDstats` mit `total`/`fecok`, `aDstats`, `aInCh`, `vPbuffer`, `vRstats` (Pakete: `late`, `lateLast`, `missing`, `last`, `lateDrop`, `lateDropLast`, `slowDecode`) |
+| Remote-Systeme | – | System-Werte wie oben plus `rtt` (**String**, z. B. `"0.201"`), dazu alle Units des Systems |
 
 - **History:** Nach `localStats.subscribe` sendet das Gerät immer zuerst
   `systems.localStatsHistory`. Mit den Werten der UI (`batch:60, max:600`) kommen zehn
@@ -83,7 +83,18 @@ Transport: WebSocket `ws://<host>/jsonrpc`, JSON-RPC 2.0.
   (`"1300"`, `"100.000"`, `"278"`).
 - `rtt` ist in Millisekunden (`0.18`), `jit_*_us` in Mikrosekunden, `delay` und
   `vPbuffer` in Millisekunden.
+- `vInT` ist in Millisekunden (UI: „TTF“), `upTime` und `statsTime` in Sekunden.
+- **`vRstats` hat in beiden Nachrichten verschiedene Keys**; `late` bedeutet jeweils etwas
+  anderes. Dem eingebetteten `sender`/`receiver` fehlt in `systems.localStats` `upTime`.
+- **Die Web-UI** zeigt alle Zahlen aus `systems.stats`, auch die der Gegenstellen auf
+  Remote-Systemen. `systems.localStats` nutzt sie nur für Graphen: `rx`/`tx` der ETHs,
+  `mbps.rx`, `vDstats` (`drop`, `corr` als „Error“, `missing`), `vInT`, `vOutFps`,
+  `vRstats.delay`/`head_min_ms` (Buffer-Auslastung `(delay-head_min_ms)/delay`) und
+  `xLink` (`resent`, `resentDrop`, `drop`). Nicht angezeigt werden u. a. `ptpSyncLocal`,
+  `sysTemp`, `vTotRun`, `xLink.p2p`, `vPbuffer.buffer`, Jitter, Loss und Health aus
+  `vRstats`.
 - SRT- und NDI-Units kamen in den Mitschnitten nicht vor.
+- Framerates können gebrochen sein (`vInFps: 24.99`), auch in `systems.localStats`.
 
 ## 2. Detail-Subscriptions (neu)
 

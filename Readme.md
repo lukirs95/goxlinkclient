@@ -57,9 +57,11 @@ Requests while the client is not connected return `ErrNotConnected`.
 ## Statistics
 
 With `WithStats(ch)` the client delivers a `Stats` value about every two
-seconds. Unit and interface statistics come from `systems.localStats`; the
-system health (CPU, temperatures, PTP sync, licenses) and the health of remote
-systems come from `systems.stats`, which `systems.localStats` does not include.
+seconds. It contains the values the web UI shows. Unit and interface
+statistics come from `systems.localStats`, completed with the values only
+`systems.stats` reports: the ARQ details and audio levels of encoders, the
+frame and packet counts of decoders, the counterparts' uptimes, and
+the health of the local and remote systems (CPU, temperature, PTP, licenses).
 
 ```go
 stats := make(chan xlinkclient.StatsUpdate)
@@ -68,7 +70,7 @@ client := xlinkclient.New(addr, xlinkclient.WithCredentials("admin", password),
 
 for s := range stats {
 	for _, dec := range s.Stats.Decoders {
-		fmt.Println(dec.ID, dec.OutputFPS, dec.XLink.RTT, dec.Receive.Health)
+		fmt.Println(dec.ID, dec.OutputFPS, dec.Video.Dropped, dec.Sender.XLink.RTT)
 	}
 }
 ```

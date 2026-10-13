@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -298,8 +297,7 @@ func (c *Client) subscribeLocalStats(ctx context.Context) {
 func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[Update], stats *latest[StatsUpdate]) {
 	var (
 		st     state
-		health Health
-		peers  []PeerStats
+		system systemStats
 		// Statistics are sent completely every few seconds, so each invalid
 		// value is logged only once per connection.
 		reported = map[string]bool{}
@@ -335,13 +333,13 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		c.publish(&st, updates)
 	}
 	handleSystemStats := func(n jsonrpc.Notification) {
-		h, p, issues, err := decodeSystemStats(n.Params)
+		ss, issues, err := decodeSystemStats(n.Params)
 		if err != nil {
 			c.logger.Error("failed to decode system statistics", slog.Any("error", err))
 			return
 		}
 		logStatsIssues(issues)
-		health, peers = h, p
+		system = ss
 	}
 	handleLocalStats := func(n jsonrpc.Notification) {
 		ls, issues, err := decodeLocalStats(n.Params)
@@ -350,24 +348,18 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 			return
 		}
 		logStatsIssues(issues)
+		merged, issues := mergeStats(ls, system)
+		logStatsIssues(issues)
 		if stats != nil {
-			stats.put(StatsUpdate{Client: c, Stats: Stats{
-				System:     ls.System,
-				Time:       ls.Time,
-				Health:     health,
-				Interfaces: ls.Interfaces,
-				Encoders:   ls.Encoders,
-				Decoders:   ls.Decoders,
-				Peers:      slices.Clone(peers),
-			}})
+			stats.put(StatsUpdate{Client: c, Stats: merged})
 		}
 	}
 
 	// Each method has its own channel and select picks among ready channels
 	// at random, so the arrival order across methods is lost. A pending
-	// systems.full is therefore applied before an update, and pending system
-	// health before unit statistics. Updates older than the state are ignored
-	// by applyUpdate.
+	// systems.full is therefore applied before an update, and pending
+	// systems.stats before systems.localStats. Updates older than the state
+	// are ignored by applyUpdate.
 	for {
 		select {
 		case <-ctx.Done():

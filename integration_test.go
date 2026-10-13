@@ -429,8 +429,8 @@ func TestDeviceChanges(t *testing.T) {
 			case u := <-d.stats:
 				for _, ds := range u.Stats.Decoders {
 					if ds.ID == id && ds.Running && ds.Sender.ID == sender.ID {
-						t.Logf("stats: %d fps, %.2f Mbps, RTT %v, health %.0f%%, sender running %t",
-							ds.OutputFPS, ds.RX, ds.XLink.RTT, ds.Receive.Health, ds.Sender.Running)
+						t.Logf("stats: %.2f fps, %.2f Mbps, %d frames, sender running %t, RTT %v",
+							ds.OutputFPS, ds.RX, ds.Video.Total, ds.Sender.Running, ds.Sender.XLink.RTT)
 						running = true
 					}
 				}
@@ -563,7 +563,7 @@ func TestDeviceChanges(t *testing.T) {
 			statsRunning := "not reported"
 			for _, es := range d.nextStats(t).Encoders {
 				if es.ID == id {
-					statsRunning = fmt.Sprintf("running=%t fps=%d", es.Running, es.InputFPS)
+					statsRunning = fmt.Sprintf("running=%t fps=%.2f", es.Running, es.InputFPS)
 				}
 			}
 			t.Fatalf("link did not start: snapshot encoder running=%t xlink=%t; state.subscribe running=%t; stats %s; receiver running=%t connected=%t",
@@ -576,8 +576,8 @@ func TestDeviceChanges(t *testing.T) {
 			case u := <-d.stats:
 				for _, es := range u.Stats.Encoders {
 					if es.ID == id && es.Running && es.Receiver.ID == receiver.ID {
-						t.Logf("stats: encoder %d fps, RTT %v; receiver running %t, %d fps, %.2f Mbps, health %.0f%%",
-							es.InputFPS, es.XLink.RTT, es.Receiver.Running, es.Receiver.OutputFPS, es.Receiver.RX, es.Receiver.Receive.Health)
+						t.Logf("stats: encoder %.2f fps, RTT %v; receiver running %t, %.2f fps, %.2f Mbps, %d frames",
+							es.InputFPS, es.XLink.RTT, es.Receiver.Running, es.Receiver.OutputFPS, es.Receiver.RX, es.Receiver.Video.Total)
 						seen = true
 					}
 				}

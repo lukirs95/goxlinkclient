@@ -1,21 +1,32 @@
 package xlinkclient
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 )
 
+// The device sends statistics in two messages. systems.localStats carries the
+// local XLink units and the active interfaces together with their
+// counterparts; the web UI plots it. systems.stats carries every unit of the
+// local and the remote systems and the system health; the web UI shows it as
+// text. Stats contains the values the web UI shows: those of
+// systems.localStats, completed with the values only systems.stats reports,
+// matched by unit ID.
+
 // Stats combines the unit and interface statistics of systems.localStats with
-// the system health from systems.stats. A Stats value is delivered for every
-// systems.localStats message and carries the most recent health.
+// the most recent systems.stats message. A Stats value is delivered for every
+// systems.localStats message. Values only systems.stats reports are zero until
+// its first message has been received.
 type Stats struct {
 	System SystemID
 	Time   time.Time
-	// Health is the most recent system health. It is zero until the first
-	// systems.stats message has been received.
+	// Health is the most recent system health.
 	Health     Health
 	Interfaces []InterfaceStats
 	Encoders   []EncoderStats
@@ -26,17 +37,14 @@ type Stats struct {
 
 // Health is the state of a system's hardware and services.
 type Health struct {
-	PTP          bool
-	PTPSync      bool
-	PTPSyncLocal bool
-	NMOS         bool
-	Uptime       time.Duration
+	PTP     bool
+	PTPSync bool
+	NMOS    bool
+	Uptime  time.Duration
 	// CPU is the CPU load in percent.
 	CPU int
-	// CPUTemp and SystemTemp are temperatures in degrees Celsius.
+	// CPUTemp is the CPU temperature in degrees Celsius.
 	CPUTemp             int
-	SystemTemp          int
-	RunningVideos       int
 	Licenses            int
 	LicensesUsed        int
 	DecoderLicenses     int
@@ -59,23 +67,56 @@ type InterfaceStats struct {
 	TX float64
 }
 
-// XLinkStats are the transport statistics of an XLink connection.
-type XLinkStats struct {
-	RTT        time.Duration
-	P2P        int64
+// EncoderXLinkStats are the transport statistics of an XLink encoder.
+type EncoderXLinkStats struct {
+	RTT time.Duration
+	// ACK reports whether the receiver acknowledges packets and Resend
+	// whether unacknowledged packets are resent. As in the web UI, Resend is
+	// only reported while ACK is on.
+	ACK    bool
+	Resend bool
+	Cloud  int64
+	Resent int64
+	NoACK  int64
+	// LateACK and DroppedACK count acknowledgements that arrived late or not
+	// at all (web UI "Late ACK").
+	LateACK    int64
+	DroppedACK int64
+	// ResentACK, ResentLateACK and ResentDroppedACK count the
+	// acknowledgements of resent packets (web UI "Resent ACK": First, Late,
+	// Drop).
+	ResentACK        int64
+	ResentLateACK    int64
+	ResentDroppedACK int64
+}
+
+// DecoderXLinkStats are the transport statistics of an XLink decoder.
+type DecoderXLinkStats struct {
 	Resent     int64
 	ResentDrop int64
 	Drop       int64
 }
 
+// AudioLevel is the level of an audio channel in dBFS.
+type AudioLevel struct {
+	Channel int
+	Level   float64
+	Peak    float64
+}
+
 // EncoderMetrics are the statistics reported for an XLink encoder, either for
 // a local encoder or as the sender of a local decoder.
 type EncoderMetrics struct {
-	ID       UnitID
-	Running  bool
-	Uptime   time.Duration
-	InputFPS int
-	XLink    XLinkStats
+	ID      UnitID
+	Running bool
+	Uptime  time.Duration
+	// StatsTime is the time the counters have been collected for.
+	StatsTime time.Duration
+	InputFPS  float64
+	// TTF is shown as "TTF" by the web UI.
+	TTF   time.Duration
+	XLink EncoderXLinkStats
+	Audio []AudioLevel
 }
 
 // EncoderStats are the statistics of a local XLink encoder and its receiver.
@@ -89,18 +130,22 @@ type EncoderStats struct {
 // DecoderMetrics are the statistics reported for an XLink decoder, either for
 // a local decoder or as the receiver of a local encoder.
 type DecoderMetrics struct {
-	ID        UnitID
-	Running   bool
-	Uptime    time.Duration
-	OutputFPS int
-	// RX and TX are in Mbps.
+	ID      UnitID
+	Running bool
+	Uptime  time.Duration
+	// StatsTime is the time the counters have been collected for.
+	StatsTime time.Duration
+	// DecodeFPS is the frame rate of the decoded input, OutputFPS that of the
+	// output.
+	DecodeFPS float64
+	OutputFPS float64
+	// RX is the received bitrate in Mbps.
 	RX      float64
-	TX      float64
-	XLink   XLinkStats
+	XLink   DecoderXLinkStats
 	Video   VideoStats
 	Audio   AudioStats
+	Packets PacketStats
 	Buffer  BufferStats
-	Receive ReceiveStats
 }
 
 // DecoderStats are the statistics of a local XLink decoder and its sender.
@@ -111,13 +156,15 @@ type DecoderStats struct {
 	Sender EncoderMetrics
 }
 
-// VideoStats count decoded video frames.
+// VideoStats count decoded video frames. The web UI shows Total as "Frames
+// Tot" and the FEC results as "Tot Ok", "Corrected" and "Error".
 type VideoStats struct {
-	Corrected    int64
+	Total        int64
 	Dropped      int64
+	Missing      int64
+	FECOK        int64
 	FECCorrected int64
 	FECFailed    int64
-	Missing      int64
 }
 
 // AudioStats count decoded audio frames.
@@ -127,28 +174,30 @@ type AudioStats struct {
 	Unsynced int64
 }
 
-// BufferStats describe the playout buffer.
-type BufferStats struct {
-	Size    time.Duration
-	Min     time.Duration
-	Warning bool
+// PacketStats count received packets that were late or missing. Each count
+// is reported in total and for the last interval.
+type PacketStats struct {
+	Late            int64
+	LateLast        int64
+	Missing         int64
+	MissingLast     int64
+	LateDropped     int64
+	LateDroppedLast int64
+	// SlowDecode counts video errors caused by too slow decoding.
+	SlowDecode int64
 }
 
-// ReceiveStats describe the received packet stream.
-type ReceiveStats struct {
-	Delay     time.Duration
-	Expected  int64
-	Received  int64
-	Lost      int64
-	MaxLost   int64
-	Late      int64
-	JitterAvg time.Duration
-	JitterMin time.Duration
-	JitterMax time.Duration
-	// Health and TotalHealth are the share of good packets in percent, for the
-	// last interval and since the start.
-	Health      float64
-	TotalHealth float64
+// BufferStats describe the playout buffer.
+type BufferStats struct {
+	// Delay is the configured playout delay and HeadMin the smallest headroom
+	// left in the buffer; the web UI plots (Delay-HeadMin)/Delay as buffer
+	// usage.
+	Delay   time.Duration
+	HeadMin time.Duration
+	// Warning is set if the buffer is too small for the ARQ settings; Min is
+	// the smallest sufficient buffer.
+	Warning bool
+	Min     time.Duration
 }
 
 // Stats item types used by both statistics messages.
@@ -166,20 +215,8 @@ func millisDuration(ms float64) time.Duration {
 	return time.Duration(ms * float64(time.Millisecond))
 }
 
-func microsDuration(us float64) time.Duration {
-	return time.Duration(us * float64(time.Microsecond))
-}
-
 func secondsDuration(s int) time.Duration {
 	return time.Duration(s) * time.Second
-}
-
-// Wire types of systems.localStats.
-
-type wireLocalStats struct {
-	SysID string          `json:"sysid"`
-	Time  flexTime        `json:"time"`
-	Data  []wireStatsItem `json:"data"`
 }
 
 type wireStatsItem struct {
@@ -193,46 +230,123 @@ type wireInterfaceStats struct {
 	TX flexFloat `json:"tx"`
 }
 
+// wireXLinkStats holds the keys of encoders and decoders alike.
 type wireXLinkStats struct {
-	RTT        flexFloat `json:"rtt"`
-	P2P        flexInt   `json:"p2p"`
-	Resent     flexInt   `json:"resent"`
-	ResentDrop flexInt   `json:"resentDrop"`
-	Drop       flexInt   `json:"drop"`
+	RTT           flexFloat `json:"rtt"`
+	XAck          flexBool  `json:"xAck"`
+	XAckR         flexBool  `json:"xAckR"`
+	Cloud         flexInt   `json:"cloud"`
+	Resent        flexInt   `json:"resent"`
+	ResentDrop    flexInt   `json:"resentDrop"`
+	Drop          flexInt   `json:"drop"`
+	NoAck         flexInt   `json:"noAck"`
+	LateAck       flexInt   `json:"lateAck"`
+	DropAck       flexInt   `json:"dropAck"`
+	ResentAck     flexInt   `json:"resentAck"`
+	LateAckResent flexInt   `json:"lateAckResent"`
+	DropAckResent flexInt   `json:"dropAckResent"`
 }
 
-func (x *wireXLinkStats) convert(c *collector) XLinkStats {
-	xc := c.scope("xLink")
-	s := XLinkStats{
-		RTT:        millisDuration(xc.float("rtt", &x.RTT)),
-		P2P:        int64(xc.int("p2p", &x.P2P)),
-		Resent:     int64(xc.int("resent", &x.Resent)),
-		ResentDrop: int64(xc.int("resentDrop", &x.ResentDrop)),
-		Drop:       int64(xc.int("drop", &x.Drop)),
+// wireAudioLevel is an element of "aInCh".
+type wireAudioLevel struct {
+	ID   flexInt   `json:"id"`
+	RMS  flexFloat `json:"dBFS_RMS"`
+	Peak flexFloat `json:"dBFS_peak"`
+}
+
+// flexObject is a JSON object whose keys are not used, e.g. the audio
+// channels. An array is accepted as well, as an empty
+// collection might be encoded as [].
+type flexObject[T any] []T
+
+// UnmarshalJSON implements json.Unmarshaler. Elements are ordered by key.
+func (o *flexObject[T]) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if bytes.HasPrefix(data, []byte("[")) {
+		var items []T
+		err := json.Unmarshal(data, &items)
+		*o = items
+		return err
 	}
-	c.merge(xc)
-	return s
+	var m map[string]T
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	*o = make([]T, 0, len(m))
+	for _, k := range slices.Sorted(maps.Keys(m)) {
+		*o = append(*o, m[k])
+	}
+	return nil
 }
 
 type wireEncoderMetrics struct {
-	ID      string         `json:"id"`
-	Running flexBool       `json:"running"`
-	UpTime  flexInt        `json:"upTime"`
-	VInFps  flexInt        `json:"vInFps"`
-	XLink   wireXLinkStats `json:"xLink"`
+	ID        string                     `json:"id"`
+	Running   flexBool                   `json:"running"`
+	UpTime    flexInt                    `json:"upTime"`
+	StatsTime flexInt                    `json:"statsTime"`
+	VInFps    flexFloat                  `json:"vInFps"`
+	VInT      flexInt                    `json:"vInT"`
+	XLink     wireXLinkStats             `json:"xLink"`
+	AInCh     flexObject[wireAudioLevel] `json:"aInCh"`
 }
 
-func (m *wireEncoderMetrics) convert(c *collector, id string) EncoderMetrics {
+// local converts the values systems.localStats reports for an encoder.
+func (m *wireEncoderMetrics) local(c *collector, id string) EncoderMetrics {
 	if m.ID != "" {
 		id = m.ID
 	}
-	return EncoderMetrics{
+	x := &m.XLink
+	xc := c.scope("xLink")
+	e := EncoderMetrics{
 		ID:       unitID(id),
 		Running:  c.bool("running", &m.Running),
 		Uptime:   secondsDuration(c.int("upTime", &m.UpTime)),
-		InputFPS: c.int("vInFps", &m.VInFps),
-		XLink:    m.XLink.convert(c),
+		InputFPS: c.float("vInFps", &m.VInFps),
+		TTF:      time.Duration(c.int("vInT", &m.VInT)) * time.Millisecond,
+		XLink: EncoderXLinkStats{
+			RTT:    millisDuration(xc.float("rtt", &x.RTT)),
+			Resent: int64(xc.int("resent", &x.Resent)),
+		},
 	}
+	c.merge(xc)
+	return e
+}
+
+// complete adds the values only systems.stats reports for an encoder. The
+// sender of a decoder carries no uptime in systems.localStats.
+func (m *wireEncoderMetrics) complete(c *collector, e *EncoderMetrics, counterpart bool) {
+	if counterpart {
+		e.Uptime = secondsDuration(c.int("upTime", &m.UpTime))
+	}
+	e.StatsTime = secondsDuration(c.int("statsTime", &m.StatsTime))
+
+	x := &m.XLink
+	xc := c.scope("xLink")
+	ack := xc.bool("xAck", &x.XAck)
+	resend := xc.bool("xAckR", &x.XAckR)
+	e.XLink.ACK = ack
+	e.XLink.Resend = ack && resend
+	e.XLink.Cloud = int64(xc.int("cloud", &x.Cloud))
+	e.XLink.NoACK = int64(xc.int("noAck", &x.NoAck))
+	e.XLink.LateACK = int64(xc.int("lateAck", &x.LateAck))
+	e.XLink.DroppedACK = int64(xc.int("dropAck", &x.DropAck))
+	e.XLink.ResentACK = int64(xc.int("resentAck", &x.ResentAck))
+	e.XLink.ResentLateACK = int64(xc.int("lateAckResent", &x.LateAckResent))
+	e.XLink.ResentDroppedACK = int64(xc.int("dropAckResent", &x.DropAckResent))
+	c.merge(xc)
+
+	ac := c.scope("aInCh")
+	e.Audio = make([]AudioLevel, 0, len(m.AInCh))
+	for i := range m.AInCh {
+		l := &m.AInCh[i]
+		e.Audio = append(e.Audio, AudioLevel{
+			Channel: ac.int("id", &l.ID),
+			Level:   ac.float("dBFS_RMS", &l.RMS),
+			Peak:    ac.float("dBFS_peak", &l.Peak),
+		})
+	}
+	slices.SortFunc(e.Audio, func(a, b AudioLevel) int { return a.Channel - b.Channel })
+	c.merge(ac)
 }
 
 type wireEncoderStats struct {
@@ -241,18 +355,21 @@ type wireEncoderStats struct {
 }
 
 type wireDecoderMetrics struct {
-	ID      string         `json:"id"`
-	Running flexBool       `json:"running"`
-	UpTime  flexInt        `json:"upTime"`
-	VOutFps flexInt        `json:"vOutFps"`
-	Mbps    wireMbps       `json:"mbps"`
-	XLink   wireXLinkStats `json:"xLink"`
-	VDstats struct {
-		Corr         flexInt `json:"corr"`
+	ID        string         `json:"id"`
+	Running   flexBool       `json:"running"`
+	UpTime    flexInt        `json:"upTime"`
+	StatsTime flexInt        `json:"statsTime"`
+	VDecFps   flexFloat      `json:"vDecFps"`
+	VOutFps   flexFloat      `json:"vOutFps"`
+	Mbps      wireMbps       `json:"mbps"`
+	XLink     wireXLinkStats `json:"xLink"`
+	VDstats   struct {
+		Total        flexInt `json:"total"`
 		Drop         flexInt `json:"drop"`
+		Missing      flexInt `json:"missing"`
+		FECOK        flexInt `json:"fecok"`
 		FECCorrected flexInt `json:"fecCorrected"`
 		FECNOK       flexInt `json:"fecnok"`
-		Missing      flexInt `json:"missing"`
 	} `json:"vDstats"`
 	ADstats struct {
 		Drop   flexInt `json:"drop"`
@@ -260,51 +377,56 @@ type wireDecoderMetrics struct {
 		Unsync flexInt `json:"unsync"`
 	} `json:"aDstats"`
 	VPbuffer struct {
-		Buffer  flexFloat `json:"buffer"`
 		Min     flexFloat `json:"min"`
 		Warning flexBool  `json:"warning"`
 	} `json:"vPbuffer"`
+	// vRstats has different keys in both messages: the buffer values in
+	// systems.localStats, the packet counts in systems.stats. "late" means
+	// something else in each and is only read from systems.stats.
 	VRstats struct {
-		Delay    flexFloat `json:"delay"`
-		Expected flexInt   `json:"expected"`
-		Received flexInt   `json:"received"`
-		Loss     flexInt   `json:"loss"`
-		MaxLoss  flexInt   `json:"maxloss"`
-		Late     flexInt   `json:"late"`
-		JitAvg   flexFloat `json:"jit_avg_us"`
-		JitMin   flexFloat `json:"jit_min_us"`
-		JitMax   flexFloat `json:"jit_max_us"`
-		Stat     flexFloat `json:"stat"`
-		StatTot  flexFloat `json:"statTot"`
+		Delay        flexFloat `json:"delay"`
+		HeadMin      flexFloat `json:"head_min_ms"`
+		Late         flexInt   `json:"late"`
+		LateLast     flexInt   `json:"lateLast"`
+		Missing      flexInt   `json:"missing"`
+		Last         flexInt   `json:"last"`
+		LateDrop     flexInt   `json:"lateDrop"`
+		LateDropLast flexInt   `json:"lateDropLast"`
+		SlowDecode   flexInt   `json:"slowDecode"`
 	} `json:"vRstats"`
 }
 
 type wireMbps struct {
 	RX flexFloat `json:"rx"`
-	TX flexFloat `json:"tx"`
 }
 
-func (m *wireDecoderMetrics) convert(c *collector, id string) DecoderMetrics {
+// local converts the values systems.localStats reports for a decoder.
+func (m *wireDecoderMetrics) local(c *collector, id string) DecoderMetrics {
 	if m.ID != "" {
 		id = m.ID
 	}
+	x := &m.XLink
+	xc := c.scope("xLink")
 	d := DecoderMetrics{
 		ID:        unitID(id),
 		Running:   c.bool("running", &m.Running),
 		Uptime:    secondsDuration(c.int("upTime", &m.UpTime)),
-		OutputFPS: c.int("vOutFps", &m.VOutFps),
+		OutputFPS: c.float("vOutFps", &m.VOutFps),
 		RX:        c.float("mbps.rx", &m.Mbps.RX),
-		TX:        c.float("mbps.tx", &m.Mbps.TX),
-		XLink:     m.XLink.convert(c),
+		XLink: DecoderXLinkStats{
+			Resent:     int64(xc.int("resent", &x.Resent)),
+			ResentDrop: int64(xc.int("resentDrop", &x.ResentDrop)),
+			Drop:       int64(xc.int("drop", &x.Drop)),
+		},
 	}
+	c.merge(xc)
 
 	v := &m.VDstats
 	d.Video = VideoStats{
-		Corrected:    int64(c.int("vDstats.corr", &v.Corr)),
 		Dropped:      int64(c.int("vDstats.drop", &v.Drop)),
+		Missing:      int64(c.int("vDstats.missing", &v.Missing)),
 		FECCorrected: int64(c.int("vDstats.fecCorrected", &v.FECCorrected)),
 		FECFailed:    int64(c.int("vDstats.fecnok", &v.FECNOK)),
-		Missing:      int64(c.int("vDstats.missing", &v.Missing)),
 	}
 	a := &m.ADstats
 	d.Audio = AudioStats{
@@ -312,32 +434,48 @@ func (m *wireDecoderMetrics) convert(c *collector, id string) DecoderMetrics {
 		Missing:  int64(c.int("aDstats.miss", &a.Miss)),
 		Unsynced: int64(c.int("aDstats.unsync", &a.Unsync)),
 	}
-	b := &m.VPbuffer
 	d.Buffer = BufferStats{
-		Size:    millisDuration(c.float("vPbuffer.buffer", &b.Buffer)),
-		Min:     millisDuration(c.float("vPbuffer.min", &b.Min)),
-		Warning: c.bool("vPbuffer.warning", &b.Warning),
-	}
-	r := &m.VRstats
-	d.Receive = ReceiveStats{
-		Delay:       millisDuration(c.float("vRstats.delay", &r.Delay)),
-		Expected:    int64(c.int("vRstats.expected", &r.Expected)),
-		Received:    int64(c.int("vRstats.received", &r.Received)),
-		Lost:        int64(c.int("vRstats.loss", &r.Loss)),
-		MaxLost:     int64(c.int("vRstats.maxloss", &r.MaxLoss)),
-		Late:        int64(c.int("vRstats.late", &r.Late)),
-		JitterAvg:   microsDuration(c.float("vRstats.jit_avg_us", &r.JitAvg)),
-		JitterMin:   microsDuration(c.float("vRstats.jit_min_us", &r.JitMin)),
-		JitterMax:   microsDuration(c.float("vRstats.jit_max_us", &r.JitMax)),
-		Health:      c.float("vRstats.stat", &r.Stat),
-		TotalHealth: c.float("vRstats.statTot", &r.StatTot),
+		Delay:   millisDuration(c.float("vRstats.delay", &m.VRstats.Delay)),
+		HeadMin: millisDuration(c.float("vRstats.head_min_ms", &m.VRstats.HeadMin)),
+		Warning: c.bool("vPbuffer.warning", &m.VPbuffer.Warning),
+		Min:     millisDuration(c.float("vPbuffer.min", &m.VPbuffer.Min)),
 	}
 	return d
+}
+
+// complete adds the values only systems.stats reports for a decoder. The
+// receiver of an encoder carries no uptime in systems.localStats.
+func (m *wireDecoderMetrics) complete(c *collector, d *DecoderMetrics, counterpart bool) {
+	if counterpart {
+		d.Uptime = secondsDuration(c.int("upTime", &m.UpTime))
+	}
+	d.StatsTime = secondsDuration(c.int("statsTime", &m.StatsTime))
+	d.DecodeFPS = c.float("vDecFps", &m.VDecFps)
+	d.Video.Total = int64(c.int("vDstats.total", &m.VDstats.Total))
+	d.Video.FECOK = int64(c.int("vDstats.fecok", &m.VDstats.FECOK))
+	r := &m.VRstats
+	d.Packets = PacketStats{
+		Late:            int64(c.int("vRstats.late", &r.Late)),
+		LateLast:        int64(c.int("vRstats.lateLast", &r.LateLast)),
+		Missing:         int64(c.int("vRstats.missing", &r.Missing)),
+		MissingLast:     int64(c.int("vRstats.last", &r.Last)),
+		LateDropped:     int64(c.int("vRstats.lateDrop", &r.LateDrop)),
+		LateDroppedLast: int64(c.int("vRstats.lateDropLast", &r.LateDropLast)),
+		SlowDecode:      int64(c.int("vRstats.slowDecode", &r.SlowDecode)),
+	}
 }
 
 type wireDecoderStats struct {
 	wireDecoderMetrics
 	Sender wireEncoderMetrics `json:"sender"`
+}
+
+// Wire types of systems.localStats.
+
+type wireLocalStats struct {
+	SysID string          `json:"sysid"`
+	Time  flexTime        `json:"time"`
+	Data  []wireStatsItem `json:"data"`
 }
 
 // localStats is a decoded systems.localStats message.
@@ -349,8 +487,8 @@ type localStats struct {
 	Decoders   []DecoderStats
 }
 
-// decodeLocalStats decodes a systems.localStats message. Items of unknown
-// types, e.g. SRT or NDI units, are ignored.
+// decodeLocalStats decodes a systems.localStats message. Items of other types,
+// e.g. NDI units, are ignored.
 func decodeLocalStats(params json.RawMessage) (localStats, []decodeIssue, error) {
 	var w wireLocalStats
 	if err := json.Unmarshal(params, &w); err != nil {
@@ -390,8 +528,8 @@ func decodeLocalStats(params json.RawMessage) (localStats, []decodeIssue, error)
 			}
 			rc := ic.scope("receiver")
 			ls.Encoders = append(ls.Encoders, EncoderStats{
-				EncoderMetrics: s.wireEncoderMetrics.convert(ic, item.ID),
-				Receiver:       s.Receiver.convert(rc, ""),
+				EncoderMetrics: s.wireEncoderMetrics.local(ic, item.ID),
+				Receiver:       s.Receiver.local(rc, ""),
 			})
 			ic.merge(rc)
 		case item.Type == statsTypeDecoder:
@@ -402,8 +540,8 @@ func decodeLocalStats(params json.RawMessage) (localStats, []decodeIssue, error)
 			}
 			sc := ic.scope("sender")
 			ls.Decoders = append(ls.Decoders, DecoderStats{
-				DecoderMetrics: s.wireDecoderMetrics.convert(ic, item.ID),
-				Sender:         s.Sender.convert(sc, ""),
+				DecoderMetrics: s.wireDecoderMetrics.local(ic, item.ID),
+				Sender:         s.Sender.local(sc, ""),
 			})
 			ic.merge(sc)
 		}
@@ -412,8 +550,7 @@ func decodeLocalStats(params json.RawMessage) (localStats, []decodeIssue, error)
 	return ls, c.issues, nil
 }
 
-// Wire types of systems.stats. Only the health of the local and the remote
-// systems is used; unit statistics come from systems.localStats.
+// Wire types of systems.stats.
 
 type wireSystemStats struct {
 	SysID string `json:"sysid"`
@@ -427,33 +564,27 @@ type wireSystemStats struct {
 }
 
 type wireHealth struct {
-	PTPSync      flexBool  `json:"ptpSync"`
-	PTPSyncLocal flexBool  `json:"ptpSyncLocal"`
-	PTP          flexBool  `json:"ptp"`
-	NMOS         flexBool  `json:"nmos"`
-	OSUpTime     flexInt   `json:"osUpTime"`
-	CPU          flexInt   `json:"cpu"`
-	CPUTemp      flexInt   `json:"cpuTemp"`
-	SysTemp      flexInt   `json:"sysTemp"`
-	VTotRun      flexInt   `json:"vTotRun"`
-	VLic         flexInt   `json:"vLic"`
-	VLicDec      flexInt   `json:"vLicDec"`
-	VLicUsed     flexInt   `json:"vLicUsed"`
-	VLicUsedDec  flexInt   `json:"vLicUsedDec"`
-	RTT          flexFloat `json:"rtt"`
+	PTPSync     flexBool  `json:"ptpSync"`
+	PTP         flexBool  `json:"ptp"`
+	NMOS        flexBool  `json:"nmos"`
+	OSUpTime    flexInt   `json:"osUpTime"`
+	CPU         flexInt   `json:"cpu"`
+	CPUTemp     flexInt   `json:"cpuTemp"`
+	VLic        flexInt   `json:"vLic"`
+	VLicDec     flexInt   `json:"vLicDec"`
+	VLicUsed    flexInt   `json:"vLicUsed"`
+	VLicUsedDec flexInt   `json:"vLicUsedDec"`
+	RTT         flexFloat `json:"rtt"`
 }
 
 func (h *wireHealth) convert(c *collector) Health {
 	return Health{
 		PTP:                 c.bool("ptp", &h.PTP),
 		PTPSync:             c.bool("ptpSync", &h.PTPSync),
-		PTPSyncLocal:        c.bool("ptpSyncLocal", &h.PTPSyncLocal),
 		NMOS:                c.bool("nmos", &h.NMOS),
 		Uptime:              secondsDuration(c.int("osUpTime", &h.OSUpTime)),
 		CPU:                 c.int("cpu", &h.CPU),
 		CPUTemp:             c.int("cpuTemp", &h.CPUTemp),
-		SystemTemp:          c.int("sysTemp", &h.SysTemp),
-		RunningVideos:       c.int("vTotRun", &h.VTotRun),
 		Licenses:            c.int("vLic", &h.VLic),
 		LicensesUsed:        c.int("vLicUsed", &h.VLicUsed),
 		DecoderLicenses:     c.int("vLicDec", &h.VLicDec),
@@ -480,23 +611,106 @@ func findHealth(c *collector, id string, items []wireStatsItem) (Health, float64
 	return Health{}, 0, false
 }
 
-// decodeSystemStats decodes the health of the local and remote systems from a
-// systems.stats message.
-func decodeSystemStats(params json.RawMessage) (Health, []PeerStats, []decodeIssue, error) {
+// systemStats is a decoded systems.stats message. The XLink units of all
+// systems are kept by ID to complete systems.localStats.
+type systemStats struct {
+	health   Health
+	peers    []PeerStats
+	encoders map[UnitID]*wireEncoderMetrics
+	decoders map[UnitID]*wireDecoderMetrics
+}
+
+// decodeSystemStats decodes a systems.stats message.
+func decodeSystemStats(params json.RawMessage) (systemStats, []decodeIssue, error) {
 	var w wireSystemStats
 	if err := json.Unmarshal(params, &w); err != nil {
-		return Health{}, nil, nil, fmt.Errorf("%w: %w", errBadStats, err)
+		return systemStats{}, nil, fmt.Errorf("%w: %w", errBadStats, err)
 	}
 
 	var c collector
-	health, _, _ := findHealth(&c, w.SysID, w.Data.Local)
-	peers := make([]PeerStats, 0, len(w.Data.Remote))
+	ss := systemStats{
+		peers:    make([]PeerStats, 0, len(w.Data.Remote)),
+		encoders: map[UnitID]*wireEncoderMetrics{},
+		decoders: map[UnitID]*wireDecoderMetrics{},
+	}
+	ss.health, _, _ = findHealth(&c, w.SysID, w.Data.Local)
+	ss.addUnits(&c, w.Data.Local)
 	for _, r := range w.Data.Remote {
+		ss.addUnits(&c, r.Data)
 		h, rtt, ok := findHealth(&c, r.SysID, r.Data)
 		if !ok {
 			continue
 		}
-		peers = append(peers, PeerStats{ID: SystemID(r.SysID), Health: h, RTT: millisDuration(rtt)})
+		ss.peers = append(ss.peers, PeerStats{ID: SystemID(r.SysID), Health: h, RTT: millisDuration(rtt)})
 	}
-	return health, peers, c.issues, nil
+	return ss, c.issues, nil
+}
+
+// addUnits adds the XLink units of one system.
+func (ss *systemStats) addUnits(c *collector, items []wireStatsItem) {
+	for _, item := range items {
+		if len(item.Data) == 0 {
+			continue
+		}
+		ic := c.scope(item.ID)
+		switch item.Type {
+		case statsTypeEncoder:
+			var m wireEncoderMetrics
+			if err := json.Unmarshal(item.Data, &m); err != nil {
+				ic.add(issueFromError("data", item.Data, err))
+				break
+			}
+			ss.encoders[UnitID(item.ID)] = &m
+		case statsTypeDecoder:
+			var m wireDecoderMetrics
+			if err := json.Unmarshal(item.Data, &m); err != nil {
+				ic.add(issueFromError("data", item.Data, err))
+				break
+			}
+			ss.decoders[UnitID(item.ID)] = &m
+		}
+		c.merge(ic)
+	}
+}
+
+// mergeStats completes the local statistics with the values only systems.stats
+// reports. Units missing from systems.stats keep these values zero.
+func mergeStats(ls localStats, ss systemStats) (Stats, []decodeIssue) {
+	var c collector
+	for i := range ls.Encoders {
+		e := &ls.Encoders[i]
+		if m := ss.encoders[e.ID]; m != nil {
+			ec := c.scope(string(e.ID))
+			m.complete(ec, &e.EncoderMetrics, false)
+			c.merge(ec)
+		}
+		if m := ss.decoders[e.Receiver.ID]; m != nil && e.Receiver.ID != "" {
+			rc := c.scope(string(e.Receiver.ID))
+			m.complete(rc, &e.Receiver, true)
+			c.merge(rc)
+		}
+	}
+	for i := range ls.Decoders {
+		d := &ls.Decoders[i]
+		if m := ss.decoders[d.ID]; m != nil {
+			dc := c.scope(string(d.ID))
+			m.complete(dc, &d.DecoderMetrics, false)
+			c.merge(dc)
+		}
+		if m := ss.encoders[d.Sender.ID]; m != nil && d.Sender.ID != "" {
+			sc := c.scope(string(d.Sender.ID))
+			m.complete(sc, &d.Sender, true)
+			c.merge(sc)
+		}
+	}
+	stats := Stats{
+		System:     ls.System,
+		Time:       ls.Time,
+		Health:     ss.health,
+		Interfaces: ls.Interfaces,
+		Encoders:   ls.Encoders,
+		Decoders:   ls.Decoders,
+		Peers:      slices.Clone(ss.peers),
+	}
+	return stats, c.issues
 }
