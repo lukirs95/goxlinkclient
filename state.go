@@ -290,3 +290,29 @@ func attachScoped[U any](c *collector, id string, u *U, attach func(*collector, 
 	attach(c, u)
 	c.pop()
 }
+
+// subscribable returns the units whose configuration is subscribed: all local
+// units and the counterparts of the local XLink units.
+func (s *state) subscribable() map[UnitID]bool {
+	l := &s.wire.Data.Local
+	ids := make(map[UnitID]bool, 2*(len(l.Enc.items)+len(l.Dec.items))+len(l.SRT.items)+len(l.NDI.items))
+	for _, e := range l.Enc.items {
+		ids[UnitID(e.ID)] = true
+		if id := unitID(e.Receiver.ID); id != "" {
+			ids[id] = true
+		}
+	}
+	for _, d := range l.Dec.items {
+		ids[UnitID(d.ID)] = true
+		if id := unitID(d.Sender.ID); id != "" {
+			ids[id] = true
+		}
+	}
+	for _, u := range l.SRT.items {
+		ids[UnitID(u.ID)] = true
+	}
+	for _, u := range l.NDI.items {
+		ids[UnitID(u.ID)] = true
+	}
+	return ids
+}

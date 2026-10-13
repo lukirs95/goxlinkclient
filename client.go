@@ -21,14 +21,11 @@ var (
 	ErrNoCredentials = errors.New("xlinkclient: no credentials configured")
 	// ErrAlreadyRunning is returned by Run if the client is already running.
 	ErrAlreadyRunning = errors.New("xlinkclient: client is already running")
+	// ErrUpdatesLost is returned by Run if messages of the device were lost.
+	// The device only sends the complete state when a connection is opened,
+	// so Run ends the connection; the next Run delivers a new snapshot.
+	ErrUpdatesLost = errors.New("xlinkclient: updates were lost")
 )
-
-// SystemUpdate is a snapshot of a system together with the client that
-// produced it. The client can be used to send requests to the system.
-type SystemUpdate struct {
-	Client *Client
-	System System
-}
 
 // StatsUpdate is a statistics message together with the client that produced
 // it.
@@ -54,11 +51,15 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithUpdates sets the channel that receives a snapshot of the system after
-// every change. The channel may be shared by several clients. If the consumer
-// is slow, it receives the most recent snapshot of each client; intermediate
-// snapshots are dropped, but the connection is never blocked.
-func WithUpdates(ch chan<- SystemUpdate) Option {
+// WithUpdates sets the channel that receives the state of the system: an
+// UpdateSnapshot with the complete system whenever a connection is opened,
+// afterwards one Update per element that was added, changed or removed,
+// carrying the complete element. The channel may be shared by several
+// clients. The connection is never blocked: if the consumer is slow, a
+// pending update is replaced by a newer one of the same element, and a
+// snapshot replaces the pending updates of its system. Updates still pending
+// when Run returns are dropped; the next Run starts with a new snapshot.
+func WithUpdates(ch chan<- Update) Option {
 	return func(c *Client) {
 		c.updatesOut = ch
 	}
@@ -81,7 +82,7 @@ type Client struct {
 	password       string
 	hasCredentials bool
 	logger         *slog.Logger
-	updatesOut     chan<- SystemUpdate
+	updatesOut     chan<- Update
 	statsOut       chan<- StatsUpdate
 	jrpc           *jsonrpc.Client
 	running        atomic.Bool
@@ -89,9 +90,11 @@ type Client struct {
 
 	mu        sync.Mutex
 	systemID  SystemID
-	snapshot  System
-	hasState  bool
 	readyWait chan struct{} // closed once the client is ready
+
+	// stateMu guards state, which readLoop modifies and Snapshot reads.
+	stateMu sync.Mutex
+	state   *state
 }
 
 // New creates a client for the system at addr (host or host:port). The
@@ -147,9 +150,13 @@ func (c *Client) SystemID() SystemID {
 // Snapshot returns the most recent state of the system. ok is false until the
 // first systems.full message has been received.
 func (c *Client) Snapshot() (sys System, ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.snapshot, c.hasState
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	if c.state == nil || !c.state.loaded {
+		return System{}, false
+	}
+	sys, _ = c.state.snapshot()
+	return sys, true
 }
 
 func (c *Client) setReady(ready bool) {
@@ -186,12 +193,12 @@ func (c *Client) Run(ctx context.Context) error {
 
 	var (
 		wg      sync.WaitGroup
-		updates *latest[SystemUpdate]
+		updates *updateQueue
 		stats   *latest[StatsUpdate]
 		subs    = newSubscriptions()
 	)
 	if c.updatesOut != nil {
-		updates = newLatest(c.updatesOut)
+		updates = newUpdateQueue(c.updatesOut)
 		wg.Add(1)
 		go func() { defer wg.Done(); updates.run(ctx) }()
 	}
@@ -221,7 +228,7 @@ func (c *Client) Run(ctx context.Context) error {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		c.readLoop(ctx, subs, updates, stats, want, results)
+		c.readLoop(ctx, cancel, subs, updates, stats, want, results)
 	}()
 	go func() {
 		defer wg.Done()
@@ -243,14 +250,18 @@ func (c *Client) Run(ctx context.Context) error {
 	// before the response has been handled. The authentication result
 	// decides which error is returned.
 	<-authDone
-	authErr := context.Cause(ctx)
+	cause := context.Cause(ctx)
 	cancel(nil)
 	wg.Wait()
 	c.setReady(false)
 
-	if authErr != nil && !errors.Is(authErr, context.Canceled) && !errors.Is(authErr, context.DeadlineExceeded) {
-		c.logger.Error("authentication failed", slog.Any("error", authErr))
-		return authErr
+	switch {
+	case errors.Is(cause, ErrUpdatesLost):
+		c.logger.Warn("updates were lost, connection closed to resynchronize")
+		return cause
+	case cause != nil && !errors.Is(cause, context.Canceled) && !errors.Is(cause, context.DeadlineExceeded):
+		c.logger.Error("authentication failed", slog.Any("error", cause))
+		return cause
 	}
 	// When the caller ends Run, closing the connection may surface as a read
 	// error instead of a context error.
@@ -315,12 +326,13 @@ func (c *Client) subscribeLocalStats(ctx context.Context) {
 }
 
 // readLoop merges system messages and unit configurations into the state,
-// publishes snapshots and forwards statistics until ctx is done. After every
-// snapshot it hands the units to subscribe to want.
-func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *latest[SystemUpdate], stats *latest[StatsUpdate],
-	want chan map[UnitID]bool, results <-chan configResult) {
+// delivers the changed elements and forwards statistics until ctx is done.
+// It hands the units to subscribe to want and ends the connection through
+// cancel if messages were lost.
+func (c *Client) readLoop(ctx context.Context, cancel context.CancelCauseFunc, subs subscriptions,
+	updates *updateQueue, stats *latest[StatsUpdate], want chan map[UnitID]bool, results <-chan configResult) {
 	var (
-		st     state
+		st     = &state{configs: configs{}}
 		wanted map[UnitID]bool
 		system systemStats
 		// Statistics are sent completely every few seconds, so each invalid
@@ -335,45 +347,79 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 			}
 		}
 	}
-
-	// publish hands out a snapshot and keeps the subscriptions in line with
-	// it: configurations of units that are gone are dropped, new units are
-	// expected.
-	publish := func() {
-		ids := c.publish(&st, updates).subscribable()
-		if maps.Equal(ids, wanted) {
-			return
-		}
-		wanted = ids
-		if st.configs == nil {
-			st.configs = configs{}
-		}
-		for id := range st.configs {
-			if !ids[id] {
-				delete(st.configs, id)
-			}
-		}
-		for id := range ids {
-			st.configs.expect(id)
-		}
-		setLatest(want, ids)
-	}
-
-	handleFull := func(n jsonrpc.Notification) {
-		if err := st.applyFull(n.Params); err != nil {
-			c.logger.Error("failed to apply full state", slog.Any("error", err))
-			return
-		}
-		publish()
-	}
 	logIssues := func(issues []decodeIssue) {
 		for _, issue := range issues {
 			c.logger.Warn("ignored invalid value from device", slog.String("value", issue.String()))
 		}
 	}
+
+	// deliver hands updates to the consumer. If units were added, removed or
+	// relinked, the subscriptions are brought in line with the state.
+	deliver := func(list []Update) {
+		resubscribe := false
+		for i := range list {
+			switch list[i].Kind {
+			case UpdateSnapshot, UpdateEncoder, UpdateDecoder, UpdateSRTEncoder, UpdateSRTDecoder,
+				UpdateNDIEncoder, UpdateNDIDecoder:
+				resubscribe = true
+			}
+			list[i].Client, list[i].System = c, c.SystemID()
+		}
+		if updates != nil {
+			updates.put(list...)
+		}
+		if !resubscribe {
+			return
+		}
+		c.stateMu.Lock()
+		ids := st.subscribable()
+		changed := !maps.Equal(ids, wanted)
+		if changed {
+			for id := range st.configs {
+				if !ids[id] {
+					delete(st.configs, id)
+				}
+			}
+			for id := range ids {
+				st.configs.expect(id)
+			}
+		}
+		c.stateMu.Unlock()
+		if changed {
+			wanted = ids
+			setLatest(want, ids)
+		}
+	}
+	// lost ends the connection; the next Run starts with a new snapshot.
+	lost := func(what string) {
+		c.logger.Warn(what + " were lost")
+		cancel(ErrUpdatesLost)
+	}
+
+	handleFull := func(n jsonrpc.Notification) {
+		c.stateMu.Lock()
+		err := st.applyFull(n.Params)
+		var (
+			sys    System
+			issues []decodeIssue
+		)
+		if err == nil {
+			sys, issues = st.snapshot()
+			c.state = st
+		}
+		c.stateMu.Unlock()
+		if err != nil {
+			c.logger.Error("failed to apply full state", slog.Any("error", err))
+			return
+		}
+		logIssues(issues)
+		deliver([]Update{{Kind: UpdateSnapshot, Snapshot: &sys}})
+	}
 	handleDelta := func(n jsonrpc.Notification) {
 		var ic collector
-		_, gap, err := st.applyUpdate(&ic, n.Params)
+		c.stateMu.Lock()
+		list, gap, err := st.applyUpdate(&ic, n.Params)
+		c.stateMu.Unlock()
 		logIssues(ic.issues)
 		switch {
 		case errors.Is(err, errStaleUpdate):
@@ -382,31 +428,33 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		case err != nil:
 			c.logger.Error("failed to apply update", slog.Any("error", err))
 			return
-		case gap:
-			c.logger.Warn("updates were lost, state may be incomplete until reconnect")
 		}
-		publish()
+		deliver(list)
+		if gap {
+			lost("system updates")
+		}
 	}
 	handleConfig := func(r configResult) {
 		if r.err != nil {
 			c.logger.Warn("unit configuration is not available", slog.String("unit", string(r.id)), slog.Any("error", r.err))
 			return
 		}
-		if st.configs[r.id] == nil {
-			return // no longer subscribed
-		}
 		var ic collector
-		_, err := st.applyUnitSubscribe(&ic, r.raw)
+		c.stateMu.Lock()
+		list, err := st.applyUnitSubscribe(&ic, r.raw)
+		c.stateMu.Unlock()
 		logIssues(ic.issues)
 		if err != nil {
 			c.logger.Error("failed to apply unit configuration", slog.String("unit", string(r.id)), slog.Any("error", err))
 			return
 		}
-		publish()
+		deliver(list)
 	}
 	handleUnitUpdate := func(n jsonrpc.Notification) {
 		var ic collector
-		_, gap, err := st.applyUnitUpdate(&ic, n.Params)
+		c.stateMu.Lock()
+		list, gap, err := st.applyUnitUpdate(&ic, n.Params)
+		c.stateMu.Unlock()
 		logIssues(ic.issues)
 		switch {
 		case errors.Is(err, errStaleUpdate), errors.Is(err, errUnknownUnit):
@@ -415,10 +463,11 @@ func (c *Client) readLoop(ctx context.Context, subs subscriptions, updates *late
 		case err != nil:
 			c.logger.Error("failed to apply unit update", slog.Any("error", err))
 			return
-		case gap:
-			c.logger.Warn("unit updates were lost, configuration may be incomplete until reconnect")
 		}
-		publish()
+		deliver(list)
+		if gap {
+			lost("unit updates")
+		}
 	}
 	handleSystemStats := func(n jsonrpc.Notification) {
 		ss, issues, err := decodeSystemStats(n.Params)
@@ -480,24 +529,4 @@ func drain(ch jsonrpc.Subscription, handle func(jsonrpc.Notification)) {
 			return
 		}
 	}
-}
-
-// publish stores a snapshot of st, hands it to the updates channel and
-// returns it. Values that could not be decoded are logged.
-func (c *Client) publish(st *state, updates *latest[SystemUpdate]) System {
-	sys, issues := st.snapshot()
-	for _, issue := range issues {
-		c.logger.Warn("ignored invalid value from device", slog.String("value", issue.String()))
-	}
-
-	c.mu.Lock()
-	c.snapshot, c.hasState = sys, true
-	c.mu.Unlock()
-
-	if updates != nil {
-		// The stored snapshot and the delivered one must not share slices.
-		delivered, _ := st.snapshot()
-		updates.put(SystemUpdate{Client: c, System: delivered})
-	}
-	return sys
 }

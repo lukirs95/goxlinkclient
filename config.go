@@ -603,34 +603,3 @@ func (cs configs) attachNDIDecoder(c *collector, d *NDIDecoder) {
 		d.Config = &cfg
 	}
 }
-
-// subscribable returns the units whose configuration is subscribed: all local
-// units and the counterparts of the local XLink units.
-func (s System) subscribable() map[UnitID]bool {
-	ids := map[UnitID]bool{}
-	for _, e := range s.Encoders {
-		ids[e.ID] = true
-		if e.Receiver.ID != "" {
-			ids[e.Receiver.ID] = true
-		}
-	}
-	for _, d := range s.Decoders {
-		ids[d.ID] = true
-		if d.Sender.ID != "" {
-			ids[d.Sender.ID] = true
-		}
-	}
-	for _, u := range s.SRTEncoders {
-		ids[u.ID] = true
-	}
-	for _, u := range s.SRTDecoders {
-		ids[u.ID] = true
-	}
-	for _, u := range s.NDIEncoders {
-		ids[u.ID] = true
-	}
-	for _, u := range s.NDIDecoders {
-		ids[u.ID] = true
-	}
-	return ids
-}

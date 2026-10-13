@@ -15,13 +15,15 @@ go get github.com/lukirs95/goxlinkclient/v4
 ## Reading state
 
 The client keeps the state of the system: it applies `systems.full` and the
-`systems.update` deltas and delivers a complete `System` snapshot after every
-change. The update and statistics channels can be shared by many clients; a
-slow consumer receives the most recent snapshot of each system and never blocks
-a connection.
+`systems.update` deltas. With `WithUpdates(ch)` it delivers an
+`UpdateSnapshot` with the complete `System` whenever a connection is opened,
+afterwards one `Update` per element that was added, changed or removed: the
+system's own fields (`UpdateSystem`), a unit, an interface, a trunk or a
+remote system. An update always carries the complete element; `Kind` says
+which field holds it, so a consumer can dispatch to specific handlers:
 
 ```go
-updates := make(chan xlinkclient.SystemUpdate)
+updates := make(chan xlinkclient.Update)
 
 client := xlinkclient.New("10.0.0.1",
 	xlinkclient.WithCredentials("admin", password),
@@ -29,24 +31,44 @@ client := xlinkclient.New("10.0.0.1",
 )
 go client.Run(ctx) // blocks until ctx is done or the connection drops
 
+handlers := map[xlinkclient.UpdateKind]func(xlinkclient.Update){
+	xlinkclient.UpdateSnapshot: func(u xlinkclient.Update) { /* u.Snapshot */ },
+	xlinkclient.UpdateEncoder: func(u xlinkclient.Update) {
+		if u.Removed {
+			fmt.Println("encoder removed", u.ID)
+			return
+		}
+		fmt.Println(u.Encoder.ID, u.Encoder.Name, u.Encoder.Running)
+	},
+}
 for u := range updates {
-	for _, enc := range u.System.Encoders {
-		fmt.Println(enc.ID, enc.Name, enc.Running, enc.VideoIn.Present())
+	if h := handlers[u.Kind]; h != nil {
+		h(u)
 	}
 }
 ```
 
+Changes are detected while a message is applied: only the elements it
+addresses are compared, and values the device repeats without change (start
+and link times in every heartbeat) produce no update. The update channel and
+the statistics channel can be shared by many clients. A slow consumer never
+blocks a connection: a pending update is replaced by a newer one of the same
+element, and a snapshot replaces the pending updates of its system.
+`Snapshot` returns the current state at any time.
+
+If the device's messages were lost (judged by their sequence numbers), `Run`
+returns `ErrUpdatesLost`; the next `Run` starts with a new snapshot.
+
 The configuration of a unit, i.e. what its settings dialog in the web UI
 shows, is not part of `systems.full`. The client subscribes it with
 `state.subscribe` for every local unit and for the counterparts of the local
-XLink units, follows the `state.update` deltas and keeps it in the snapshot.
-`Config` is nil until it has been loaded:
+XLink units and follows the `state.update` deltas. Loading and changing a
+configuration delivers the complete unit; `Config` is nil until it has been
+loaded:
 
 ```go
-for _, enc := range u.System.Encoders {
-	if enc.Config != nil {
-		fmt.Println(enc.ID, enc.Config.Bitrate, enc.Config.GOP, enc.Config.MaxRTT)
-	}
+if enc := u.Encoder; enc != nil && enc.Config != nil {
+	fmt.Println(enc.ID, enc.Config.Bitrate, enc.Config.GOP, enc.Config.MaxRTT)
 	if enc.Receiver.Config != nil {
 		fmt.Println(enc.Receiver.ID, enc.Receiver.Config.PacketBuffer)
 	}

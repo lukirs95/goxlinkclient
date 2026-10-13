@@ -205,9 +205,9 @@ func (d *fakeDevice) nextRequest(t *testing.T) request {
 
 // startClient runs a client against d and returns it with the channel of its
 // updates and a function that stops it and returns the result of Run.
-func startClient(t *testing.T, d *fakeDevice, password string) (*Client, chan SystemUpdate, func() error) {
+func startClient(t *testing.T, d *fakeDevice, password string) (*Client, chan Update, func() error) {
 	t.Helper()
-	updates := make(chan SystemUpdate)
+	updates := make(chan Update)
 	c := New(d.addr(), WithCredentials("admin", password), WithUpdates(updates))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -261,8 +261,8 @@ func TestClientEndToEnd(t *testing.T) {
 
 	select {
 	case u := <-updates:
-		if u.Client != c || u.System.ID != fakeSystemID || len(u.System.Encoders) != 5 {
-			t.Errorf("update = client %p system %s with %d encoders", u.Client, u.System.ID, len(u.System.Encoders))
+		if u.Kind != UpdateSnapshot || u.Client != c || u.System != fakeSystemID || len(u.Snapshot.Encoders) != 5 {
+			t.Errorf("first update = %v from client %p system %s", u.Kind, u.Client, u.System)
 		}
 	case <-ctx.Done():
 		t.Fatal("no update received")
@@ -431,21 +431,26 @@ func TestRunNotConcurrent(t *testing.T) {
 	_ = stop()
 }
 
-// waitSystem returns the first snapshot from updates that satisfies cond.
-func waitSystem(t *testing.T, updates <-chan SystemUpdate, what string, cond func(System) bool) System {
+// waitUpdate returns the first update that satisfies cond.
+func waitUpdate(t *testing.T, updates <-chan Update, what string, cond func(Update) bool) Update {
 	t.Helper()
 	timeout := time.After(3 * time.Second)
 	for {
 		select {
 		case u := <-updates:
-			if cond(u.System) {
-				return u.System
+			if cond(u) {
+				return u
 			}
 		case <-timeout:
-			t.Fatalf("no snapshot with %s", what)
-			return System{}
+			t.Fatalf("no update with %s", what)
+			return Update{}
 		}
 	}
+}
+
+// isUnit reports whether u is an update of the unit with the given kind and ID.
+func isUnit(u Update, kind UpdateKind, id string) bool {
+	return u.Kind == kind && u.ID == id
 }
 
 // nextUnitRequest returns the next state.subscribe or state.unsubscribe
@@ -484,34 +489,65 @@ func TestUnitConfigEndToEnd(t *testing.T) {
 		delete(want, id)
 	}
 
-	// The fake device knows the configuration of E1 and D1 only.
-	sys := waitSystem(t, updates, "configurations", func(s System) bool {
-		e1, _ := s.Encoder("X8A1001-E1")
-		d1, _ := s.Decoder("X8A1001-D1")
-		return e1.Config != nil && d1.Config != nil
+	// The fake device knows the configuration of E1 and D1 only; loading
+	// them delivers the complete units.
+	var (
+		e1 *Encoder
+		d1 *Decoder
+	)
+	waitUpdate(t, updates, "the configurations of E1 and D1", func(u Update) bool {
+		switch {
+		case isUnit(u, UpdateEncoder, "X8A1001-E1") && u.Encoder.Config != nil:
+			e1 = u.Encoder
+		case isUnit(u, UpdateDecoder, "X8A1001-D1") && u.Decoder.Config != nil:
+			d1 = u.Decoder
+		}
+		return e1 != nil && d1 != nil
 	})
-	e1, _ := sys.Encoder("X8A1001-E1")
-	d1, _ := sys.Decoder("X8A1001-D1")
-	if e1.Config.Bitrate != 18 || d1.Config.Sender != "X8A1008-E1" || e1.Receiver.Config != nil {
-		t.Errorf("E1 config %+v receiver config %+v, D1 config %+v", e1.Config, e1.Receiver.Config, d1.Config)
+	if e1.Config.Bitrate != 18 || e1.Name == "" || e1.Receiver.ID != "X4A1004-D1" || e1.Receiver.Config != nil {
+		t.Errorf("E1 = %+v, config %+v", e1, e1.Config)
 	}
-	if e2, _ := sys.Encoder("X8A1001-E2"); e2.Config != nil {
-		t.Errorf("E2 config = %+v, want nil for a rejected subscription", e2.Config)
+	if d1.Config.Sender != "X8A1008-E1" {
+		t.Errorf("D1 config = %+v", d1.Config)
 	}
 
-	// Changes are pushed as deltas.
+	// Changes of the configuration deliver the complete unit.
 	d.push <- notification{"state.update", json.RawMessage(`{"id":"X8A1001-E1","dataid":2,"data":{"values":{"vTBR":25}}}`)}
-	sys = waitSystem(t, updates, "the new bitrate", func(s System) bool {
-		e1, _ := s.Encoder("X8A1001-E1")
-		return e1.Config != nil && e1.Config.Bitrate == 25
-	})
-	if e1, _ := sys.Encoder("X8A1001-E1"); e1.Config.Name != "Encoder 106" || !e1.Config.IntraRefresh {
+	e1 = waitUpdate(t, updates, "the new bitrate", func(u Update) bool {
+		return isUnit(u, UpdateEncoder, "X8A1001-E1")
+	}).Encoder
+	if e1.Config.Bitrate != 25 || e1.Config.Name != "Encoder 106" || !e1.Config.IntraRefresh {
 		t.Errorf("E1 config after update = %+v", e1.Config)
 	}
 
-	// A deleted unit is unsubscribed.
+	// A deleted unit is reported and unsubscribed.
 	d.push <- notification{"systems.update", json.RawMessage(`{"sysid":"X8A1001","dataid":770,"data":{"local":{"enc":[{"id":"X8A1001-E2","delete":true}]}}}`)}
+	if u := waitUpdate(t, updates, "the removal", func(u Update) bool { return u.Kind == UpdateEncoder }); u.ID != "X8A1001-E2" || !u.Removed || u.Encoder != nil {
+		t.Errorf("removal = %+v", u)
+	}
 	if method, id := d.nextUnitRequest(t); method != "state.unsubscribe" || id != "X8A1001-E2" {
 		t.Errorf("unit request %s %s, want state.unsubscribe X8A1001-E2", method, id)
+	}
+}
+
+func TestUpdatesLostEndsRun(t *testing.T) {
+	d := newFakeDevice(t, "secret")
+	updates := make(chan Update, 64)
+	c := New(d.addr(), WithCredentials("admin", "secret"), WithUpdates(updates))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- c.Run(ctx) }()
+	waitUpdate(t, updates, "the snapshot", func(u Update) bool { return u.Kind == UpdateSnapshot })
+
+	// The snapshot has dataid 769; 771 means that 770 was lost.
+	d.push <- notification{"systems.update", json.RawMessage(`{"sysid":"X8A1001","dataid":771,"data":{"local":{"name":"NEW"}}}`)}
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrUpdatesLost) {
+			t.Errorf("Run = %v, want ErrUpdatesLost", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Run did not return")
 	}
 }

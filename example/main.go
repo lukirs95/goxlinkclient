@@ -28,7 +28,7 @@ func main() {
 	defer stop()
 
 	// One pair of channels serves all systems.
-	updates := make(chan xlinkclient.SystemUpdate)
+	updates := make(chan xlinkclient.Update)
 	stats := make(chan xlinkclient.StatsUpdate)
 
 	var wg sync.WaitGroup
@@ -46,18 +46,41 @@ func main() {
 		}()
 	}
 
+	// Each kind of update has its own handler.
+	handlers := map[xlinkclient.UpdateKind]func(xlinkclient.Update){
+		xlinkclient.UpdateSnapshot: func(u xlinkclient.Update) {
+			sys := u.Snapshot
+			fmt.Printf("%s (%s, %s): %d encoders, %d decoders\n",
+				sys.Name, sys.ID, sys.Version, len(sys.Encoders), len(sys.Decoders))
+		},
+		xlinkclient.UpdateEncoder: func(u xlinkclient.Update) {
+			if u.Removed {
+				fmt.Printf("%s: encoder %s removed\n", u.System, u.ID)
+				return
+			}
+			enc := u.Encoder
+			fmt.Printf("%s: encoder %s %q running=%t video=%s receiver=%s\n",
+				u.System, enc.ID, enc.Name, enc.Running, enc.VideoIn, enc.Receiver.ID)
+		},
+		xlinkclient.UpdateDecoder: func(u xlinkclient.Update) {
+			if u.Removed {
+				fmt.Printf("%s: decoder %s removed\n", u.System, u.ID)
+				return
+			}
+			dec := u.Decoder
+			fmt.Printf("%s: decoder %s %q running=%t video=%s sender=%s\n",
+				u.System, dec.ID, dec.Name, dec.Running, dec.VideoOut, dec.Sender.ID)
+		},
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
 			return
 		case u := <-updates:
-			sys := u.System
-			fmt.Printf("%s (%s, %s): %d encoders, %d decoders\n",
-				sys.Name, sys.ID, sys.Version, len(sys.Encoders), len(sys.Decoders))
-			for _, enc := range sys.Encoders {
-				fmt.Printf("  %s %-20s running=%t video=%s receiver=%s\n",
-					enc.ID, enc.Name, enc.Running, enc.VideoIn, enc.Receiver.ID)
+			if h := handlers[u.Kind]; h != nil {
+				h(u)
 			}
 		case s := <-stats:
 			fmt.Printf("%s: CPU %d%% %d°C, PTP sync %t\n",
